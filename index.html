@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ride & Grind — Coffee Ledger</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f0e8; --surface: #fffdf8; --surface2: #f0ebe0;
+    --border: #d4c9b0; --border-strong: #b5a88a;
+    --text: #1a1510; --text-muted: #6b5f4a; --text-faint: #9b8f78;
+    --accent: #2d5016; --accent-light: #e8f0df; --accent-mid: #5a8a30;
+    --danger: #8b1a1a; --danger-light: #f5e8e8;
+    --amber: #7a4f0d; --amber-light: #faf0d8;
+    --radius: 10px; --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 0 0 80px; }
+
+  header { background: var(--accent); color: #f5f0e8; padding: 16px 20px 14px; position: sticky; top: 0; z-index: 100; border-bottom: 3px solid #1a3008; display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-family: 'Playfair Display', serif; font-size: 20px; }
+  .header-sub { font-family: 'DM Mono', monospace; font-size: 10px; color: #a8c880; margin-top: 2px; letter-spacing: 1px; text-transform: uppercase; }
+  .sync-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #f5f0e8; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; display: flex; align-items: center; gap: 6px; transition: background 0.15s; white-space: nowrap; }
+  .sync-btn:hover { background: rgba(255,255,255,0.22); }
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #a8c880; flex-shrink: 0; transition: background 0.3s; }
+  .sync-dot.dirty { background: #f0c060; }
+  .sync-dot.error { background: #f08060; }
+
+  .sync-bar { padding: 7px 16px; font-size: 11px; font-family: 'DM Mono', monospace; display: none; align-items: center; gap: 8px; }
+  .sync-bar.show { display: flex; }
+  .sync-bar.ok { background: var(--accent-light); color: var(--accent); border-bottom: 1px solid #b8d898; }
+  .sync-bar.warn { background: var(--amber-light); color: var(--amber); border-bottom: 1px solid #d4b870; }
+  .sync-bar.err { background: var(--danger-light); color: var(--danger); border-bottom: 1px solid #d4a0a0; }
+
+  /* SETUP */
+  .setup-wrap { max-width: 500px; margin: 32px auto; padding: 0 16px; }
+  .setup-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; }
+  .setup-card h2 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 8px; }
+  .setup-card p { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
+  .steps { background: var(--surface2); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; }
+  .steps ol { padding-left: 18px; }
+  .steps li { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; line-height: 1.5; }
+  .steps li:last-child { margin-bottom: 0; }
+  .steps code { font-family: 'DM Mono', monospace; font-size: 12px; background: var(--border); padding: 1px 5px; border-radius: 3px; color: var(--text); }
+  .setup-field { margin-bottom: 14px; }
+  .setup-field label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; letter-spacing: 0.5px; text-transform: uppercase; font-family: 'DM Mono', monospace; }
+  .setup-field .hint { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+  .err-msg { margin-top: 12px; font-size: 13px; color: var(--danger); display: none; }
+
+  /* TABS */
+  .nav-tabs { display: flex; background: var(--surface2); border-bottom: 1px solid var(--border); overflow-x: auto; }
+  .nav-tab { padding: 12px 18px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--text-muted); white-space: nowrap; border-bottom: 3px solid transparent; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
+  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface); }
+  .nav-tab:hover:not(.active) { background: var(--bg); color: var(--text); }
+
+  .view { display: none; padding: 20px 16px; max-width: 700px; margin: 0 auto; }
+  .view.active { display: block; }
+  .section-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 12px; }
+
+  /* PAYER CARD (today tab) */
+  .payer-card { border-radius: var(--radius); padding: 18px 20px; margin-bottom: 20px; position: relative; overflow: hidden; }
+  .payer-card.has-payer { background: var(--accent); color: #f5f0e8; }
+  .payer-card.no-payer { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
+  .payer-card::after { content: '☕'; position: absolute; right: 14px; top: 8px; font-size: 46px; opacity: 0.13; pointer-events: none; }
+  .pc-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #a8c880; margin-bottom: 4px; }
+  .no-payer .pc-label { color: var(--text-faint); }
+  .pc-name { font-family: 'Playfair Display', serif; font-size: 28px; margin-bottom: 4px; line-height: 1.1; }
+  .no-payer .pc-name { font-size: 16px; font-family: 'DM Sans', sans-serif; font-weight: 500; }
+  .pc-reason { font-family: 'DM Mono', monospace; font-size: 12px; color: #c8e8a0; }
+
+  /* SETTLE HERO */
+  .settle-hero { border-radius: var(--radius); padding: 24px 20px; margin-bottom: 20px; text-align: center; }
+  .settle-hero.has-payer { background: var(--accent); color: #f5f0e8; }
+  .settle-hero.even { background: var(--accent-light); border: 1px solid #b8d898; color: var(--accent); }
+  .settle-hero.empty { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
+  .sh-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
+  .has-payer .sh-eyebrow { color: #a8c880; }
+  .even .sh-eyebrow { color: var(--accent-mid); }
+  .empty .sh-eyebrow { color: var(--text-faint); }
+  .sh-name { font-family: 'Playfair Display', serif; font-size: 36px; margin-bottom: 6px; line-height: 1.1; }
+  .even .sh-name, .empty .sh-name { font-size: 18px; font-family: 'DM Sans', sans-serif; }
+  .sh-sub { font-family: 'DM Mono', monospace; font-size: 12px; margin-bottom: 18px; }
+  .has-payer .sh-sub { color: #c8e8a0; }
+  .even .sh-sub { color: var(--accent-mid); }
+  .empty .sh-sub { color: var(--text-faint); }
+  .sh-confirm-btn { background: #f5f0e8; color: var(--accent); border: none; padding: 12px 30px; border-radius: 30px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 8px; }
+  .sh-confirm-btn:hover { background: #fff; transform: translateY(-1px); }
+
+  /* RIDER CARDS */
+  .rider-grid { display: grid; gap: 10px; }
+  .rider-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.15s; }
+  .rider-card:hover { border-color: var(--border-strong); }
+  .rider-card.present { border-color: var(--accent-mid); background: var(--accent-light); }
+  .rider-card.top-payer { border-color: var(--accent); border-width: 2px; }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; color: var(--text-muted); flex-shrink: 0; }
+  .present .avatar { background: var(--accent); color: #f5f0e8; border-color: var(--accent); }
+  .rider-info { flex: 1; min-width: 0; }
+  .rider-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rider-stats { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); }
+  .rider-debt { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+  .dp { background: var(--danger-light); color: var(--danger); }
+  .dz { background: var(--surface2); color: var(--text-faint); }
+  .dn { background: var(--accent-light); color: var(--accent); }
+  .coffee-counter { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .counter-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text); transition: all 0.1s; line-height: 1; }
+  .counter-btn:hover { background: var(--surface2); }
+  .counter-btn:active { transform: scale(0.92); }
+  .counter-val { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; min-width: 20px; text-align: center; }
+
+  /* SETTLE LIST */
+  .settle-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+  .settle-card.top { border-color: var(--accent-mid); background: var(--accent-light); }
+
+  /* HISTORY */
+  .history-entry { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px; }
+  .history-date { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-faint); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+  .history-payer { font-weight: 600; font-size: 14px; color: var(--accent); margin-bottom: 4px; }
+  .history-detail { font-size: 12px; color: var(--text-muted); font-family: 'DM Mono', monospace; }
+
+  /* RIDERS MGMT */
+  .add-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; display: flex; gap: 10px; }
+  input[type="text"], input[type="password"] { flex: 1; padding: 9px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 14px; background: var(--bg); color: var(--text); outline: none; transition: border-color 0.15s; width: 100%; }
+  input[type="text"]:focus, input[type="password"]:focus { border-color: var(--accent-mid); }
+  .manage-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-family: 'DM Mono', monospace; }
+  .td { background: var(--danger-light); color: var(--danger); }
+  .tc { background: var(--accent-light); color: var(--accent); }
+  .te { background: var(--surface2); color: var(--text-faint); }
+
+  /* BUTTONS */
+  .btn { padding: 8px 16px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; transition: all 0.15s; }
+  .btn-p { background: var(--accent); color: #f5f0e8; }
+  .btn-p:hover { background: #1a3008; }
+  .btn-s { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-s:hover { background: var(--bg); }
+  .btn-d { background: var(--danger-light); color: var(--danger); border: 1px solid #d4a0a0; }
+  .btn-d:hover { background: #f0d0d0; }
+  .btn-full { width: 100%; padding: 12px; font-size: 15px; margin-top: 12px; border-radius: var(--radius); }
+
+  /* STATS */
+  .stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 20px; }
+  .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; text-align: center; }
+  .stat-box .val { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 500; color: var(--accent); }
+  .stat-box .lbl { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(20,15,8,0.6); z-index: 200; align-items: flex-end; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: 16px 16px 0 0; padding: 24px 20px 36px; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto; }
+  .modal h3 { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 6px; }
+  .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+
+  /* MISC */
+  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-faint); font-size: 14px; }
+  .empty-state .icon { font-size: 36px; margin-bottom: 12px; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #f5f0e8; padding: 10px 22px; border-radius: 24px; font-size: 13px; font-weight: 500; z-index: 500; opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+  .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 999; flex-direction: column; gap: 12px; }
+  .spin { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  .loading-overlay p { font-size: 13px; color: var(--text-faint); font-family: 'DM Mono', monospace; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loading">
+  <div class="spin"></div>
+  <p>Loading from GitHub…</p>
+</div>
+
+<!-- SETUP -->
+<div id="setup-screen" style="display:none">
+  <div class="setup-wrap">
+    <div class="setup-card">
+      <h2>Welcome to Ride &amp; Grind ☕</h2>
+      <p>Data is stored in your GitHub repo as a JSON file — everyone in the group sees the same thing in real time. One-time setup only.</p>
+      <div class="steps">
+        <ol>
+          <li>Create a GitHub repo (e.g. <code>ride-and-grind</code>) — public or private</li>
+          <li>Go to <strong>GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens</strong></li>
+          <li>New token → select your repo → under <em>Repository permissions</em> set <strong>Contents: Read and write</strong></li>
+          <li>Copy the token and paste below</li>
+        </ol>
+      </div>
+      <div class="setup-field">
+        <label>GitHub Username</label>
+        <input type="text" id="cfg-owner" placeholder="your-username">
+      </div>
+      <div class="setup-field">
+        <label>Repository Name</label>
+        <input type="text" id="cfg-repo" placeholder="ride-and-grind">
+      </div>
+      <div class="setup-field">
+        <label>Personal Access Token</label>
+        <input type="password" id="cfg-token" placeholder="github_pat_…">
+        <div class="hint">Saved only in this browser. Never sent anywhere except GitHub.</div>
+      </div>
+      <button class="btn btn-p btn-full" id="connect-btn" onclick="connectGitHub()">Connect to GitHub →</button>
+      <div class="err-msg" id="setup-error"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="main-app" style="display:none">
+  <header>
+    <div>
+      <h1>Ride &amp; Grind</h1>
+      <div class="header-sub">Coffee Debt Tracker</div>
+    </div>
+    <button class="sync-btn" id="sync-btn" onclick="syncNow(true)">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-label">Sync</span>
+    </button>
+  </header>
+  <div class="sync-bar" id="sync-bar"></div>
+
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="switchTab('today',this)">Today's Ride</button>
+    <button class="nav-tab" onclick="switchTab('settle',this)">Settle Up</button>
+    <button class="nav-tab" onclick="switchTab('history',this)">History</button>
+    <button class="nav-tab" onclick="switchTab('riders',this)">Riders</button>
+    <button class="nav-tab" onclick="switchTab('settings',this)">⚙</button>
+  </div>
+
+  <div id="view-today" class="view active">
+    <div id="owes-card"></div>
+    <div class="stats-row" id="today-stats"></div>
+    <p class="section-title">Tap to mark present · +/− to count coffees</p>
+    <div class="rider-grid" id="today-riders"></div>
+  </div>
+
+  <div id="view-settle" class="view">
+    <div id="settle-hero-wrap"></div>
+    <p class="section-title">All present riders — sorted by debt</p>
+    <div id="settle-list"></div>
+  </div>
+
+  <div id="view-history" class="view">
+    <p class="section-title">Past sessions</p>
+    <div id="history-list"></div>
+  </div>
+
+  <div id="view-riders" class="view">
+    <div class="add-form">
+      <input type="text" id="new-rider-name" placeholder="Rider name…" onkeydown="if(event.key==='Enter')addRider()">
+      <button class="btn btn-p" onclick="addRider()">Add</button>
+    </div>
+    <p class="section-title">All riders</p>
+    <div id="riders-list"></div>
+  </div>
+
+  <div id="view-settings" class="view">
+    <p class="section-title">GitHub connection</p>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
+      <div style="font-size:13px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-bottom:12px;" id="cfg-display"></div>
+      <button class="btn btn-d" onclick="disconnectGitHub()">Disconnect &amp; reset</button>
+    </div>
+    <p class="section-title">Danger zone</p>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Clear all history and balances. Keeps your rider list.</p>
+      <button class="btn btn-d" onclick="resetBalances()">Reset all balances</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM PAYMENT MODAL -->
+<div class="modal-overlay" id="pay-modal">
+  <div class="modal">
+    <h3>Confirm payment</h3>
+    <div class="modal-sub" id="pay-modal-sub"></div>
+    <div id="pay-modal-body"></div>
+    <button class="btn btn-s btn-full" onclick="closeModal()">Cancel</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── CONFIG ───────────────────────────────────────────────
+const CFG_KEY = 'rg_config_v2';
+function getConfig() { try { return JSON.parse(localStorage.getItem(CFG_KEY))||null; } catch(e){return null;} }
+function saveConfig(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
+
+// ── GITHUB API ────────────────────────────────────────────
+const DATA_FILE = 'data.json';
+let _sha = null;
+
+async function ghFetch(method, path, body) {
+  const cfg = getConfig();
+  const res = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${path}`, {
+    method,
+    headers: {
+      'Authorization': `Bearer ${cfg.token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'Content-Type': 'application/json'
+    },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.message||`HTTP ${res.status}`); }
+  return res.json();
+}
+
+async function ghLoad() {
+  try {
+    const file = await ghFetch('GET', DATA_FILE);
+    _sha = file.sha;
+    return JSON.parse(atob(file.content.replace(/\n/g,'')));
+  } catch(e) {
+    if (e.message && (e.message.includes('Not Found') || e.message.includes('404'))) return defaultData();
+    throw e;
+  }
+}
+
+async function ghSave(data) {
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+  const res = await ghFetch('PUT', DATA_FILE, {
+    message: `session update ${new Date().toISOString()}`,
+    content,
+    ...(_sha ? {sha:_sha} : {})
+  });
+  _sha = res.content.sha;
+}
+
+// ── DATA ──────────────────────────────────────────────────
+function defaultData() { return { riders:[], sessions:[], todayPresent:[], todayCoffees:{} }; }
+let D = defaultData();
+let _dirty = false;
+let _autoTimer = null;
+
+function markDirty() {
+  _dirty = true;
+  setSyncDot('dirty');
+  clearTimeout(_autoTimer);
+  _autoTimer = setTimeout(()=>syncNow(false), 5000);
+}
+
+async function syncNow(manual=false) {
+  clearTimeout(_autoTimer);
+  if (!_dirty && _sha && !manual) return;
+  setSyncLabel('Syncing…'); setSyncBtn(true);
+  try {
+    // Pull latest then push (last-write-wins on rider balances, local wins for today state)
+    const remote = await ghLoad();
+    // If remote riders differ and we haven't changed any balances locally today, adopt remote riders
+    if (remote && remote.riders) {
+      // Merge: remote is the truth for completed balance data
+      // Preserve local todayPresent and todayCoffees since those are session-in-progress
+      const localToday = { todayPresent: D.todayPresent, todayCoffees: D.todayCoffees };
+      D = remote;
+      D.todayPresent = localToday.todayPresent;
+      D.todayCoffees = localToday.todayCoffees;
+    }
+    await ghSave(D);
+    _dirty = false;
+    setSyncDot('ok'); setSyncLabel('Synced'); setSyncBtn(false);
+    showBar('ok', `Synced at ${now()}`);
+    renderAll();
+  } catch(e) {
+    setSyncDot('error'); setSyncLabel('Error'); setSyncBtn(false);
+    showBar('err', `Sync failed: ${e.message}`);
+  }
+}
+
+async function pullLatest() {
+  setSyncLabel('Loading…'); setSyncBtn(true);
+  try {
+    D = await ghLoad();
+    _dirty = false;
+    setSyncDot('ok'); setSyncLabel('Synced'); setSyncBtn(false);
+    showBar('ok', `Refreshed at ${now()}`);
+    renderAll();
+  } catch(e) {
+    setSyncDot('error'); setSyncLabel('Offline'); setSyncBtn(false);
+    showBar('err', `Load failed: ${e.message}`);
+  }
+}
+
+// ── SYNC UI ──────────────────────────────────────────────
+function setSyncDot(s) { const d=document.getElementById('sync-dot'); d.className='sync-dot'+(s==='dirty'?' dirty':s==='error'?' error':''); }
+function setSyncLabel(t) { document.getElementById('sync-label').textContent=t; }
+function setSyncBtn(busy) { document.getElementById('sync-btn').style.opacity=busy?'0.6':'1'; }
+let _barTimer;
+function showBar(type, msg) {
+  const b=document.getElementById('sync-bar');
+  b.textContent=msg; b.className=`sync-bar show ${type}`;
+  clearTimeout(_barTimer); _barTimer=setTimeout(()=>b.className='sync-bar',5000);
+}
+function now() { return new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'}); }
+
+// ── HELPERS ──────────────────────────────────────────────
+function initials(name) { return name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
+function getNet(r) { return r.coffeesDrank - r.coffeesPaid; }
+function debtClass(n) { return n>0?'dp':n<0?'dn':'dz'; }
+function badge(n) { return `<span class="rider-debt ${debtClass(n)}">${n>0?'+':''}${n}</span>`; }
+function topPresent() {
+  const present = D.riders.filter(r=>D.todayPresent.includes(r.id));
+  if (!present.length) return null;
+  return [...present].sort((a,b)=>getNet(b)-getNet(a))[0];
+}
+function totalCoffeesToday() { return Object.values(D.todayCoffees).reduce((a,b)=>a+b,0); }
+
+function toast(msg) {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'),2600);
+}
+
+// ── TODAY VIEW ────────────────────────────────────────────
+function renderToday() {
+  const present = D.riders.filter(r=>D.todayPresent.includes(r.id));
+  const total = totalCoffeesToday();
+  const top = topPresent();
+
+  document.getElementById('today-stats').innerHTML=`
+    <div class="stat-box"><div class="val">${present.length}</div><div class="lbl">Present</div></div>
+    <div class="stat-box"><div class="val">${total}</div><div class="lbl">Coffees</div></div>
+    <div class="stat-box"><div class="val">${D.riders.length}</div><div class="lbl">Riders</div></div>`;
+
+  const oc = document.getElementById('owes-card');
+  if (!top) {
+    oc.innerHTML=`<div class="payer-card no-payer"><div class="pc-label">Recommended payer</div><div class="pc-name">Mark riders present to see who owes</div></div>`;
+  } else {
+    const net=getNet(top);
+    if (net>0) {
+      oc.innerHTML=`<div class="payer-card has-payer"><div class="pc-label">Recommended payer</div><div class="pc-name">${top.name}</div><div class="pc-reason">owes ${net} coffee${net!==1?'s':''} overall — highest debt present</div></div>`;
+    } else {
+      oc.innerHTML=`<div class="payer-card no-payer"><div class="pc-label">All square</div><div class="pc-name">No one owes — take turns ☕</div></div>`;
+    }
+  }
+
+  const grid=document.getElementById('today-riders');
+  if (!D.riders.length) { grid.innerHTML=`<div class="empty-state"><div class="icon">🚴</div>Add riders in the Riders tab first</div>`; return; }
+
+  grid.innerHTML=D.riders.map(r=>{
+    const isPresent=D.todayPresent.includes(r.id);
+    const coffees=D.todayCoffees[r.id]||0;
+    const net=getNet(r);
+    const isTop=isPresent&&top&&r.id===top.id&&net>0;
+    return `<div class="rider-card${isPresent?' present':''}${isTop?' top-payer':''}" onclick="togglePresent('${r.id}')">
+      <div class="avatar">${initials(r.name)}</div>
+      <div class="rider-info">
+        <div class="rider-name">${r.name}${isTop?' 👑':''}</div>
+        <div class="rider-stats">drank: ${r.coffeesDrank} · paid: ${r.coffeesPaid}</div>
+        ${isPresent?`<div class="coffee-counter" onclick="event.stopPropagation()">
+          <button class="counter-btn" onclick="changeCoffee('${r.id}',-1)">−</button>
+          <span class="counter-val">${coffees}</span>
+          <button class="counter-btn" onclick="changeCoffee('${r.id}',1)">+</button>
+          <span style="font-size:11px;color:var(--text-faint);margin-left:2px;">today</span>
+        </div>`:''}
+      </div>
+      ${badge(net)}
+    </div>`;
+  }).join('');
+}
+
+function togglePresent(id) {
+  const idx=D.todayPresent.indexOf(id);
+  if (idx===-1) { D.todayPresent.push(id); if(!D.todayCoffees[id]) D.todayCoffees[id]=1; }
+  else { D.todayPresent.splice(idx,1); delete D.todayCoffees[id]; }
+  markDirty(); renderToday(); renderSettle();
+}
+
+function changeCoffee(id, delta) {
+  D.todayCoffees[id]=Math.max(0,(D.todayCoffees[id]||0)+delta);
+  markDirty(); renderToday(); renderSettle();
+}
+
+// ── SETTLE VIEW ───────────────────────────────────────────
+function renderSettle() {
+  const present=D.riders.filter(r=>D.todayPresent.includes(r.id));
+  const hero=document.getElementById('settle-hero-wrap');
+  const list=document.getElementById('settle-list');
+  const total=totalCoffeesToday();
+
+  if (!present.length) {
+    hero.innerHTML=`<div class="settle-hero empty"><div class="sh-eyebrow">Who pays?</div><div class="sh-name">No one present yet</div><div class="sh-sub">Mark riders in Today's Ride first</div></div>`;
+    list.innerHTML=''; return;
+  }
+
+  const sorted=[...present].sort((a,b)=>getNet(b)-getNet(a));
+  const top=sorted[0];
+  const net=getNet(top);
+
+  if (net>0) {
+    hero.innerHTML=`<div class="settle-hero has-payer">
+      <div class="sh-eyebrow">Recommended payer · ${total} coffee${total!==1?'s':''} today</div>
+      <div class="sh-name">${top.name}</div>
+      <div class="sh-sub">owes ${net} coffee${net!==1?'s':''} overall — highest debt among present riders</div>
+      <button class="sh-confirm-btn" onclick="openPayModal('${top.id}')">✓ Confirm ${top.name} pays</button>
+    </div>`;
+  } else {
+    hero.innerHTML=`<div class="settle-hero even">
+      <div class="sh-eyebrow">${total} coffee${total!==1?'s':''} today</div>
+      <div class="sh-name">All square — choose below</div>
+      <div class="sh-sub">Everyone's even, pick whoever wants to pay</div>
+    </div>`;
+  }
+
+  list.innerHTML=sorted.map((r,i)=>{
+    const c=D.todayCoffees[r.id]||0;
+    const n=getNet(r);
+    return `<div class="settle-card${i===0&&n>0?' top':''}">
+      <div class="avatar">${initials(r.name)}</div>
+      <div style="flex:1;min-width:0">
+        <div class="rider-name">${r.name}${i===0&&n>0?' 👑':''}</div>
+        <div class="rider-stats">${c} coffee${c!==1?'s':''} today · net: ${n>0?'+':''}${n}</div>
+      </div>
+      ${badge(n)}
+      <button class="btn btn-s" style="font-size:12px;padding:6px 12px;white-space:nowrap;" onclick="openPayModal('${r.id}')">They paid</button>
+    </div>`;
+  }).join('');
+}
+
+function openPayModal(payerId) {
+  const payer=D.riders.find(r=>r.id===payerId);
+  if (!payer) return;
+  const total=totalCoffeesToday();
+  const net=getNet(payer);
+  document.getElementById('pay-modal-sub').textContent=`${payer.name} buys ${total} coffee${total!==1?'s':''} for the group.`;
+  document.getElementById('pay-modal-body').innerHTML=`
+    <div style="background:var(--accent-light);border-radius:var(--radius);padding:14px;margin-bottom:16px;">
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;font-family:'DM Mono',monospace;">Balance after this round</div>
+      <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:500;color:var(--accent);">${net>0?'+':''}${net} → ${net-total>0?'+':''}${net-total} coffees net</div>
+    </div>
+    <button class="btn btn-p btn-full" onclick="recordPayment('${payerId}')">✓ Confirm &amp; save to GitHub</button>`;
+  document.getElementById('pay-modal').classList.add('open');
+}
+
+function recordPayment(payerId) {
+  const total=totalCoffeesToday();
+  const payer=D.riders.find(r=>r.id===payerId);
+  if (!payer) return;
+
+  const sessionRiders=[];
+  D.todayPresent.forEach(rid=>{
+    const r=D.riders.find(x=>x.id===rid); if(!r) return;
+    const c=D.todayCoffees[rid]||0;
+    r.coffeesDrank+=c;
+    sessionRiders.push({id:rid,name:r.name,coffees:c});
+  });
+  payer.coffeesPaid+=total;
+  D.sessions.unshift({id:Date.now(),date:new Date().toISOString(),payerId,payerName:payer.name,totalCoffees:total,riders:sessionRiders});
+  D.todayPresent=[]; D.todayCoffees={};
+
+  closeModal();
+  toast(`Saving… ${payer.name} paid for ${total} coffee${total!==1?'s':''}!`);
+  _dirty=true;
+  syncNow(true); // force immediate sync for payment
+  renderAll();
+}
+
+function closeModal() { document.getElementById('pay-modal').classList.remove('open'); }
+
+// ── HISTORY ───────────────────────────────────────────────
+function renderHistory() {
+  const list=document.getElementById('history-list');
+  if (!D.sessions.length) { list.innerHTML=`<div class="empty-state"><div class="icon">📋</div>No sessions recorded yet</div>`; return; }
+  list.innerHTML=D.sessions.map(s=>{
+    const dt=new Date(s.date);
+    const ds=dt.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+    return `<div class="history-entry">
+      <div class="history-date">${ds}</div>
+      <div class="history-payer">${s.payerName} paid for ${s.totalCoffees} coffee${s.totalCoffees!==1?'s':''}</div>
+      <div class="history-detail">${s.riders.map(r=>`${r.name} (${r.coffees})`).join(' · ')}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── RIDERS ────────────────────────────────────────────────
+function renderRiders() {
+  const list=document.getElementById('riders-list');
+  if (!D.riders.length) { list.innerHTML=`<div class="empty-state"><div class="icon">👥</div>Add your riding crew above</div>`; return; }
+  list.innerHTML=D.riders.map(r=>{
+    const net=getNet(r);
+    return `<div class="manage-card">
+      <div class="avatar">${initials(r.name)}</div>
+      <div style="flex:1;min-width:0">
+        <div class="rider-name">${r.name}</div>
+        <div class="rider-stats">drank: ${r.coffeesDrank} · paid: ${r.coffeesPaid}</div>
+      </div>
+      <span class="tag ${net>0?'td':net<0?'tc':'te'}">${net>0?'+':''}${net}</span>
+      <button class="btn btn-d" style="padding:6px 10px;font-size:12px;" onclick="removeRider('${r.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function addRider() {
+  const inp=document.getElementById('new-rider-name');
+  const name=inp.value.trim(); if(!name) return;
+  if (D.riders.find(r=>r.name.toLowerCase()===name.toLowerCase())) { toast('Already in the crew'); return; }
+  D.riders.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,coffeesDrank:0,coffeesPaid:0});
+  markDirty(); inp.value=''; renderAll(); toast(`${name} added to the crew!`);
+}
+
+function removeRider(id) {
+  const r=D.riders.find(x=>x.id===id);
+  if (!confirm(`Remove ${r?.name}?`)) return;
+  D.riders=D.riders.filter(x=>x.id!==id);
+  D.todayPresent=D.todayPresent.filter(x=>x!==id);
+  delete D.todayCoffees[id];
+  markDirty(); renderAll(); toast('Rider removed');
+}
+
+function resetBalances() {
+  if (!confirm('Reset all balances and history? Riders will be kept.')) return;
+  D.sessions=[]; D.todayPresent=[]; D.todayCoffees={};
+  D.riders.forEach(r=>{r.coffeesDrank=0;r.coffeesPaid=0;});
+  _dirty=true; syncNow(true); renderAll(); toast('Balances reset');
+}
+
+function disconnectGitHub() {
+  if (!confirm('Clear connection settings? Your GitHub data file stays intact.')) return;
+  localStorage.removeItem(CFG_KEY); location.reload();
+}
+
+// ── NAV ───────────────────────────────────────────────────
+function switchTab(tab, el) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('view-'+tab).classList.add('active');
+  el.classList.add('active');
+  // Pull fresh data when viewing settle or history tabs
+  if (tab==='settle'||tab==='history') pullLatest();
+}
+
+function renderAll() { renderToday(); renderSettle(); renderHistory(); renderRiders(); }
+
+// ── SETUP ─────────────────────────────────────────────────
+async function connectGitHub() {
+  const owner=document.getElementById('cfg-owner').value.trim();
+  const repo=document.getElementById('cfg-repo').value.trim();
+  const token=document.getElementById('cfg-token').value.trim();
+  const errEl=document.getElementById('setup-error');
+  errEl.style.display='none';
+  if (!owner||!repo||!token) { errEl.textContent='Please fill in all fields.'; errEl.style.display='block'; return; }
+  const btn=document.getElementById('connect-btn');
+  btn.textContent='Connecting…'; btn.disabled=true;
+  saveConfig({owner,repo,token});
+  try {
+    D=await ghLoad();
+    if (!_sha) await ghSave(D); // create file if brand new repo
+    document.getElementById('loading').style.display='none';
+    document.getElementById('setup-screen').style.display='none';
+    showApp(); renderAll();
+  } catch(e) {
+    errEl.textContent=`Connection failed: ${e.message}. Check the token has Contents: Read and write for this repo.`;
+    errEl.style.display='block';
+    btn.textContent='Connect to GitHub →'; btn.disabled=false;
+    localStorage.removeItem(CFG_KEY);
+  }
+}
+
+function showApp() {
+  document.getElementById('main-app').style.display='block';
+  const cfg=getConfig();
+  document.getElementById('cfg-display').textContent=`${cfg.owner}/${cfg.repo} → data.json`;
+}
+
+// ── INIT ──────────────────────────────────────────────────
+async function init() {
+  const cfg=getConfig();
+  if (!cfg) {
+    document.getElementById('loading').style.display='none';
+    document.getElementById('setup-screen').style.display='block';
+    return;
+  }
+  try {
+    D=await ghLoad();
+    document.getElementById('loading').style.display='none';
+    showApp(); renderAll();
+    // Auto-refresh every 60s so idle phones pick up changes
+    setInterval(()=>{ if(!_dirty) pullLatest(); }, 60000);
+  } catch(e) {
+    document.getElementById('loading').style.display='none';
+    document.getElementById('setup-screen').style.display='block';
+    const err=document.getElementById('setup-error');
+    err.textContent=`Couldn't load from GitHub: ${e.message}`;
+    err.style.display='block';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
