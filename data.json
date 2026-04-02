@@ -1,6 +1,10 @@
 {
   "riders": [],
   "sessions": [],
-  "todayPresent": [],
-  "todayCoffees": {}
+  "todayPresent": [
+    "mnhdmbnn1zgt"
+  ],
+  "todayCoffees": {
+    "mnhdmbnn1zgt": 1
+  }
 }
