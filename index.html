@@ -1,685 +1,1621 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ride & Grind — Coffee Ledger</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Playfair+Display:wght@700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<style>
-  :root {
-    --bg: #f5f0e8; --surface: #fffdf8; --surface2: #f0ebe0;
-    --border: #d4c9b0; --border-strong: #b5a88a;
-    --text: #1a1510; --text-muted: #6b5f4a; --text-faint: #9b8f78;
-    --accent: #2d5016; --accent-light: #e8f0df; --accent-mid: #5a8a30;
-    --danger: #8b1a1a; --danger-light: #f5e8e8;
-    --amber: #7a4f0d; --amber-light: #faf0d8;
-    --radius: 10px; --radius-sm: 6px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 0 0 80px; }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Ride & Grind</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --green: #1b4332;
+      --green-mid: #2d6a4f;
+      --green-pale: #d8f3dc;
+      --coffee: #6b3a2a;
+      --orange: #e76f51;
+      --orange-light: #f4a261;
+      --cream: #fdf8f0;
+      --white: #ffffff;
+      --gray-50: #f8f9fa;
+      --gray-100: #f1f0eb;
+      --gray-200: #e0ddd5;
+      --gray-400: #9d9890;
+      --gray-600: #6b6760;
+      --gray-900: #1c1917;
+      --border: #e0ddd5;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 8px rgba(0,0,0,0.04);
+    }
 
-  header { background: var(--accent); color: #f5f0e8; padding: 16px 20px 14px; position: sticky; top: 0; z-index: 100; border-bottom: 3px solid #1a3008; display: flex; align-items: center; justify-content: space-between; }
-  header h1 { font-family: 'Playfair Display', serif; font-size: 20px; }
-  .header-sub { font-family: 'DM Mono', monospace; font-size: 10px; color: #a8c880; margin-top: 2px; letter-spacing: 1px; text-transform: uppercase; }
-  .sync-btn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.2); color: #f5f0e8; padding: 6px 12px; border-radius: var(--radius-sm); font-size: 12px; cursor: pointer; font-family: 'DM Sans', sans-serif; display: flex; align-items: center; gap: 6px; transition: background 0.15s; white-space: nowrap; }
-  .sync-btn:hover { background: rgba(255,255,255,0.22); }
-  .sync-dot { width: 7px; height: 7px; border-radius: 50%; background: #a8c880; flex-shrink: 0; transition: background 0.3s; }
-  .sync-dot.dirty { background: #f0c060; }
-  .sync-dot.error { background: #f08060; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  .sync-bar { padding: 7px 16px; font-size: 11px; font-family: 'DM Mono', monospace; display: none; align-items: center; gap: 8px; }
-  .sync-bar.show { display: flex; }
-  .sync-bar.ok { background: var(--accent-light); color: var(--accent); border-bottom: 1px solid #b8d898; }
-  .sync-bar.warn { background: var(--amber-light); color: var(--amber); border-bottom: 1px solid #d4b870; }
-  .sync-bar.err { background: var(--danger-light); color: var(--danger); border-bottom: 1px solid #d4a0a0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--cream);
+      color: var(--gray-900);
+      min-height: 100vh;
+      font-size: 16px;
+      line-height: 1.5;
+    }
 
-  /* SETUP */
-  .setup-wrap { max-width: 500px; margin: 32px auto; padding: 0 16px; }
-  .setup-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 24px; }
-  .setup-card h2 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 8px; }
-  .setup-card p { font-size: 14px; color: var(--text-muted); margin-bottom: 20px; line-height: 1.6; }
-  .steps { background: var(--surface2); border-radius: var(--radius-sm); padding: 14px 16px; margin-bottom: 20px; }
-  .steps ol { padding-left: 18px; }
-  .steps li { font-size: 13px; color: var(--text-muted); margin-bottom: 6px; line-height: 1.5; }
-  .steps li:last-child { margin-bottom: 0; }
-  .steps code { font-family: 'DM Mono', monospace; font-size: 12px; background: var(--border); padding: 1px 5px; border-radius: 3px; color: var(--text); }
-  .setup-field { margin-bottom: 14px; }
-  .setup-field label { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; letter-spacing: 0.5px; text-transform: uppercase; font-family: 'DM Mono', monospace; }
-  .setup-field .hint { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
-  .err-msg { margin-top: 12px; font-size: 13px; color: var(--danger); display: none; }
+    #app {
+      max-width: 480px;
+      margin: 0 auto;
+      min-height: 100vh;
+      background: var(--cream);
+    }
 
-  /* TABS */
-  .nav-tabs { display: flex; background: var(--surface2); border-bottom: 1px solid var(--border); overflow-x: auto; }
-  .nav-tab { padding: 12px 18px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; background: transparent; color: var(--text-muted); white-space: nowrap; border-bottom: 3px solid transparent; transition: all 0.15s; font-family: 'DM Sans', sans-serif; }
-  .nav-tab.active { color: var(--accent); border-bottom-color: var(--accent); background: var(--surface); }
-  .nav-tab:hover:not(.active) { background: var(--bg); color: var(--text); }
+    /* === TYPOGRAPHY === */
+    h2 { font-size: 1.25rem; font-weight: 700; }
+    h3 { font-size: 1rem; font-weight: 600; }
 
-  .view { display: none; padding: 20px 16px; max-width: 700px; margin: 0 auto; }
-  .view.active { display: block; }
-  .section-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--text-faint); margin-bottom: 12px; }
+    /* === LAYOUT === */
+    .page {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
 
-  /* PAYER CARD (today tab) */
-  .payer-card { border-radius: var(--radius); padding: 18px 20px; margin-bottom: 20px; position: relative; overflow: hidden; }
-  .payer-card.has-payer { background: var(--accent); color: #f5f0e8; }
-  .payer-card.no-payer { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
-  .payer-card::after { content: '☕'; position: absolute; right: 14px; top: 8px; font-size: 46px; opacity: 0.13; pointer-events: none; }
-  .pc-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: #a8c880; margin-bottom: 4px; }
-  .no-payer .pc-label { color: var(--text-faint); }
-  .pc-name { font-family: 'Playfair Display', serif; font-size: 28px; margin-bottom: 4px; line-height: 1.1; }
-  .no-payer .pc-name { font-size: 16px; font-family: 'DM Sans', sans-serif; font-weight: 500; }
-  .pc-reason { font-family: 'DM Mono', monospace; font-size: 12px; color: #c8e8a0; }
+    .card {
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 14px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
 
-  /* SETTLE HERO */
-  .settle-hero { border-radius: var(--radius); padding: 24px 20px; margin-bottom: 20px; text-align: center; }
-  .settle-hero.has-payer { background: var(--accent); color: #f5f0e8; }
-  .settle-hero.even { background: var(--accent-light); border: 1px solid #b8d898; color: var(--accent); }
-  .settle-hero.empty { background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
-  .sh-eyebrow { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 10px; }
-  .has-payer .sh-eyebrow { color: #a8c880; }
-  .even .sh-eyebrow { color: var(--accent-mid); }
-  .empty .sh-eyebrow { color: var(--text-faint); }
-  .sh-name { font-family: 'Playfair Display', serif; font-size: 36px; margin-bottom: 6px; line-height: 1.1; }
-  .even .sh-name, .empty .sh-name { font-size: 18px; font-family: 'DM Sans', sans-serif; }
-  .sh-sub { font-family: 'DM Mono', monospace; font-size: 12px; margin-bottom: 18px; }
-  .has-payer .sh-sub { color: #c8e8a0; }
-  .even .sh-sub { color: var(--accent-mid); }
-  .empty .sh-sub { color: var(--text-faint); }
-  .sh-confirm-btn { background: #f5f0e8; color: var(--accent); border: none; padding: 12px 30px; border-radius: 30px; font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s; display: inline-flex; align-items: center; gap: 8px; }
-  .sh-confirm-btn:hover { background: #fff; transform: translateY(-1px); }
+    .section-label {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--gray-400);
+      margin-bottom: 8px;
+    }
 
-  /* RIDER CARDS */
-  .rider-grid { display: grid; gap: 10px; }
-  .rider-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: all 0.15s; }
-  .rider-card:hover { border-color: var(--border-strong); }
-  .rider-card.present { border-color: var(--accent-mid); background: var(--accent-light); }
-  .rider-card.top-payer { border-color: var(--accent); border-width: 2px; }
-  .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--surface2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-family: 'DM Mono', monospace; font-size: 13px; font-weight: 500; color: var(--text-muted); flex-shrink: 0; }
-  .present .avatar { background: var(--accent); color: #f5f0e8; border-color: var(--accent); }
-  .rider-info { flex: 1; min-width: 0; }
-  .rider-name { font-weight: 600; font-size: 15px; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .rider-stats { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-muted); }
-  .rider-debt { font-family: 'DM Mono', monospace; font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
-  .dp { background: var(--danger-light); color: var(--danger); }
-  .dz { background: var(--surface2); color: var(--text-faint); }
-  .dn { background: var(--accent-light); color: var(--accent); }
-  .coffee-counter { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-  .counter-btn { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--border-strong); background: var(--surface); cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; color: var(--text); transition: all 0.1s; line-height: 1; }
-  .counter-btn:hover { background: var(--surface2); }
-  .counter-btn:active { transform: scale(0.92); }
-  .counter-val { font-family: 'DM Mono', monospace; font-size: 14px; font-weight: 500; min-width: 20px; text-align: center; }
+    /* === HEADER === */
+    .app-header {
+      background: var(--green);
+      color: white;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
 
-  /* SETTLE LIST */
-  .settle-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
-  .settle-card.top { border-color: var(--accent-mid); background: var(--accent-light); }
+    .back-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      font-size: 1.3rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      line-height: 1;
+    }
 
-  /* HISTORY */
-  .history-entry { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 8px; }
-  .history-date { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--text-faint); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
-  .history-payer { font-weight: 600; font-size: 14px; color: var(--accent); margin-bottom: 4px; }
-  .history-detail { font-size: 12px; color: var(--text-muted); font-family: 'DM Mono', monospace; }
+    .app-header h1 {
+      font-size: 1.1rem;
+      font-weight: 700;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
 
-  /* RIDERS MGMT */
-  .add-form { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; display: flex; gap: 10px; }
-  input[type="text"], input[type="password"] { flex: 1; padding: 9px 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: 'DM Sans', sans-serif; font-size: 14px; background: var(--bg); color: var(--text); outline: none; transition: border-color 0.15s; width: 100%; }
-  input[type="text"]:focus, input[type="password"]:focus { border-color: var(--accent-mid); }
-  .manage-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 13px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px; }
-  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-family: 'DM Mono', monospace; }
-  .td { background: var(--danger-light); color: var(--danger); }
-  .tc { background: var(--accent-light); color: var(--accent); }
-  .te { background: var(--surface2); color: var(--text-faint); }
+    .header-actions { display: flex; gap: 8px; align-items: center; }
 
-  /* BUTTONS */
-  .btn { padding: 8px 16px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500; transition: all 0.15s; }
-  .btn-p { background: var(--accent); color: #f5f0e8; }
-  .btn-p:hover { background: #1a3008; }
-  .btn-s { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-  .btn-s:hover { background: var(--bg); }
-  .btn-d { background: var(--danger-light); color: var(--danger); border: 1px solid #d4a0a0; }
-  .btn-d:hover { background: #f0d0d0; }
-  .btn-full { width: 100%; padding: 12px; font-size: 15px; margin-top: 12px; border-radius: var(--radius); }
+    .header-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
 
-  /* STATS */
-  .stats-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 20px; }
-  .stat-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; text-align: center; }
-  .stat-box .val { font-family: 'DM Mono', monospace; font-size: 20px; font-weight: 500; color: var(--accent); }
-  .stat-box .lbl { font-size: 10px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+    .header-icon-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      font-size: 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
 
-  /* MODAL */
-  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(20,15,8,0.6); z-index: 200; align-items: flex-end; justify-content: center; }
-  .modal-overlay.open { display: flex; }
-  .modal { background: var(--surface); border-radius: 16px 16px 0 0; padding: 24px 20px 36px; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto; }
-  .modal h3 { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 6px; }
-  .modal-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 16px; }
+    /* === BUTTONS === */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { transform: scale(0.97); opacity: 0.85; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+    .btn-primary { background: var(--green); color: white; }
+    .btn-accent  { background: var(--orange); color: white; }
+    .btn-outline { background: transparent; color: var(--green); border: 2px solid var(--green); }
+    .btn-ghost   { background: var(--gray-100); color: var(--gray-900); }
+    .btn-danger  { background: #fee2e2; color: #b91c1c; }
+    .btn-sm      { padding: 8px 14px; font-size: 0.8rem; }
+    .btn-full    { width: 100%; }
 
-  /* MISC */
-  .empty-state { text-align: center; padding: 40px 20px; color: var(--text-faint); font-size: 14px; }
-  .empty-state .icon { font-size: 36px; margin-bottom: 12px; }
-  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #f5f0e8; padding: 10px 22px; border-radius: 24px; font-size: 13px; font-weight: 500; z-index: 500; opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; }
-  .toast.show { opacity: 1; }
-  .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 999; flex-direction: column; gap: 12px; }
-  .spin { width: 28px; height: 28px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
-  .loading-overlay p { font-size: 13px; color: var(--text-faint); font-family: 'DM Mono', monospace; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-</style>
+    /* === FORMS === */
+    .form-group { margin-bottom: 12px; }
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--gray-600);
+      margin-bottom: 5px;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+      color: var(--gray-900);
+      background: var(--white);
+      transition: border-color 0.15s;
+      -webkit-appearance: none;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--green);
+    }
+
+    /* === BADGES === */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    .badge-green  { background: var(--green-pale); color: var(--green); }
+    .badge-orange { background: #fff3e0; color: #c45500; }
+    .badge-gray   { background: var(--gray-100); color: var(--gray-600); }
+    .badge-blue   { background: #e0f2fe; color: #0369a1; }
+    .badge-red    { background: #fee2e2; color: #b91c1c; }
+
+    /* === LOADING & EMPTY === */
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 16px;
+      flex-direction: column;
+      gap: 14px;
+      color: var(--gray-400);
+      font-size: 0.9rem;
+    }
+    .spinner {
+      width: 30px;
+      height: 30px;
+      border: 3px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty {
+      text-align: center;
+      padding: 28px 16px;
+      color: var(--gray-400);
+      font-size: 0.9rem;
+    }
+    .empty-icon { font-size: 2.2rem; margin-bottom: 6px; }
+
+    /* === HOME === */
+    .home-logo {
+      text-align: center;
+      padding: 36px 16px 20px;
+    }
+    .home-logo .logo-icon { font-size: 3.5rem; line-height: 1; }
+    .home-logo h1 {
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: var(--green);
+      letter-spacing: -0.03em;
+      margin-top: 6px;
+    }
+    .home-logo p { color: var(--gray-400); font-size: 0.9rem; }
+
+    /* === GROUP LIST === */
+    .group-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--gray-100);
+      transition: background 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .group-item:last-child { border-bottom: none; }
+    .group-item:active { background: var(--gray-50); }
+    .group-avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--green-pale);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+    .group-info .g-name { font-weight: 600; font-size: 0.95rem; }
+    .group-info .g-sub  { font-size: 0.78rem; color: var(--gray-400); margin-top: 1px; }
+    .group-arrow { color: var(--gray-400); font-size: 1.2rem; }
+
+    /* === LEADERBOARD === */
+    .lb-row {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--gray-100);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .lb-row:last-child { border-bottom: none; }
+    .rank {
+      width: 27px;
+      height: 27px;
+      border-radius: 50%;
+      background: var(--gray-100);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 700;
+      flex-shrink: 0;
+      color: var(--gray-600);
+    }
+    .rank-1 { background: #fef08a; color: #854d0e; font-size: 0.9rem; }
+    .rank-2 { background: #e2e8f0; color: #475569; }
+    .rank-3 { background: #fed7aa; color: #7c2d12; }
+    .lb-name { flex: 1; font-weight: 500; font-size: 0.95rem; }
+    .lb-debt { font-weight: 700; font-size: 0.85rem; }
+
+    /* === STAT GRID === */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .stat-item {
+      background: var(--gray-50);
+      border-radius: var(--radius-sm);
+      padding: 12px 10px;
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--green);
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 0.7rem;
+      color: var(--gray-400);
+      margin-top: 4px;
+      font-weight: 500;
+    }
+
+    /* === RIDE CARD === */
+    .ride-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 0;
+      border-bottom: 1px solid var(--gray-100);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .ride-item:last-child { border-bottom: none; }
+    .ride-date-box {
+      background: var(--green);
+      color: white;
+      border-radius: var(--radius-sm);
+      padding: 6px 10px;
+      text-align: center;
+      min-width: 46px;
+      flex-shrink: 0;
+    }
+    .ride-date-box.active-ride { background: var(--orange); }
+    .ride-date-box .rd-day   { font-size: 1.25rem; font-weight: 800; line-height: 1; }
+    .ride-date-box .rd-month { font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .ride-info .ri-title { font-weight: 600; font-size: 0.88rem; }
+    .ride-info .ri-sub   { font-size: 0.78rem; color: var(--gray-400); margin-top: 2px; }
+
+    /* === REGISTRATION ROWS === */
+    .reg-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--gray-100);
+    }
+    .reg-item:last-child { border-bottom: none; }
+    .reg-name { flex: 1; font-weight: 500; font-size: 0.92rem; }
+    .reg-toggle {
+      display: flex;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1.5px solid var(--border);
+    }
+    .reg-btn {
+      padding: 6px 11px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--gray-600);
+      cursor: pointer;
+      transition: all 0.12s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .reg-btn.on-ride   { background: var(--green); color: white; }
+    .reg-btn.on-coffee { background: var(--coffee); color: white; }
+    .reg-btn.on-remove { background: var(--gray-100); }
+
+    /* === ATTENDANCE CHECKLIST === */
+    .att-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--gray-100);
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .att-item:last-child { border-bottom: none; }
+    .att-check {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      font-size: 0.75rem;
+      transition: all 0.15s;
+    }
+    .att-check.checked { background: var(--green); border-color: var(--green); color: white; }
+    .att-name { flex: 1; font-size: 0.92rem; }
+    .att-type { font-size: 0.72rem; color: var(--gray-400); }
+
+    /* === TRAIL MASTER BANNER === */
+    .tm-banner {
+      background: linear-gradient(135deg, var(--coffee), #9c6b4e);
+      color: white;
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .tm-icon { font-size: 2.4rem; flex-shrink: 0; }
+    .tm-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.75; }
+    .tm-name  { font-size: 1.4rem; font-weight: 800; line-height: 1.1; }
+    .tm-sub   { font-size: 0.82rem; opacity: 0.82; margin-top: 3px; }
+
+    /* === PAYER BANNER === */
+    .payer-banner {
+      background: linear-gradient(135deg, var(--orange), var(--orange-light));
+      color: white;
+      border-radius: var(--radius);
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .payer-icon { font-size: 2.4rem; flex-shrink: 0; }
+    .payer-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.8; }
+    .payer-name  { font-size: 1.4rem; font-weight: 800; line-height: 1.1; }
+    .payer-sub   { font-size: 0.82rem; opacity: 0.85; margin-top: 3px; }
+
+    /* === SETUP === */
+    .setup-hero {
+      background: linear-gradient(150deg, var(--green) 0%, var(--green-mid) 100%);
+      color: white;
+      padding: 36px 20px 28px;
+      text-align: center;
+    }
+    .setup-hero .hero-icon { font-size: 3.2rem; }
+    .setup-hero h1 { font-size: 2rem; font-weight: 900; margin-top: 8px; letter-spacing: -0.02em; }
+    .setup-hero p  { opacity: 0.8; font-size: 0.9rem; margin-top: 4px; }
+
+    .step-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--green);
+      color: white;
+      font-size: 0.72rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .step-row p { font-size: 0.88rem; color: var(--gray-600); }
+    .step-row a { color: var(--green); font-weight: 600; text-decoration: none; }
+
+    .code-block {
+      background: #1a1a2e;
+      color: #a8dadc;
+      border-radius: var(--radius-sm);
+      padding: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.65rem;
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.6;
+      margin-top: 8px;
+    }
+
+    /* === MODAL === */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      z-index: 100;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      animation: fade-in 0.2s ease;
+    }
+    @keyframes fade-in { from { opacity: 0; } }
+
+    .modal {
+      background: var(--white);
+      border-radius: var(--radius) var(--radius) 0 0;
+      padding: 20px 16px 36px;
+      width: 100%;
+      max-width: 480px;
+      max-height: 88vh;
+      overflow-y: auto;
+      animation: slide-up 0.25s ease;
+    }
+    @keyframes slide-up { from { transform: translateY(40px); opacity: 0; } }
+
+    .modal-handle {
+      width: 36px;
+      height: 4px;
+      background: var(--gray-200);
+      border-radius: 2px;
+      margin: 0 auto 18px;
+    }
+
+    /* === TOAST === */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--gray-900);
+      color: white;
+      padding: 11px 18px;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem;
+      font-weight: 500;
+      z-index: 999;
+      transition: transform 0.28s ease;
+      max-width: calc(100vw - 32px);
+      text-align: center;
+      pointer-events: none;
+    }
+    #toast.show          { transform: translateX(-50%) translateY(0); }
+    #toast.toast-success { background: var(--green-mid); }
+    #toast.toast-error   { background: #b91c1c; }
+
+    /* === MISC === */
+    .text-muted   { color: var(--gray-400); font-size: 0.85rem; }
+    .text-center  { text-align: center; }
+    .mt-2 { margin-top: 8px; }
+    .mt-3 { margin-top: 12px; }
+  </style>
 </head>
 <body>
-
-<div class="loading-overlay" id="loading">
-  <div class="spin"></div>
-  <p>Loading from GitHub…</p>
-</div>
-
-<!-- SETUP -->
-<div id="setup-screen" style="display:none">
-  <div class="setup-wrap">
-    <div class="setup-card">
-      <h2>Welcome to Ride &amp; Grind ☕</h2>
-      <p>Data is stored in your GitHub repo as a JSON file — everyone in the group sees the same thing in real time. One-time setup only.</p>
-      <div class="steps">
-        <ol>
-          <li>Create a GitHub repo (e.g. <code>ride-and-grind</code>) — public or private</li>
-          <li>Go to <strong>GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens</strong></li>
-          <li>New token → select your repo → under <em>Repository permissions</em> set <strong>Contents: Read and write</strong></li>
-          <li>Copy the token and paste below</li>
-        </ol>
-      </div>
-      <div class="setup-field">
-        <label>GitHub Username</label>
-        <input type="text" id="cfg-owner" placeholder="your-username">
-      </div>
-      <div class="setup-field">
-        <label>Repository Name</label>
-        <input type="text" id="cfg-repo" placeholder="ride-and-grind">
-      </div>
-      <div class="setup-field">
-        <label>Personal Access Token</label>
-        <input type="password" id="cfg-token" placeholder="github_pat_…">
-        <div class="hint">Saved only in this browser. Never sent anywhere except GitHub.</div>
-      </div>
-      <button class="btn btn-p btn-full" id="connect-btn" onclick="connectGitHub()">Connect to GitHub →</button>
-      <div class="err-msg" id="setup-error"></div>
-    </div>
-  </div>
-</div>
-
-<!-- MAIN APP -->
-<div id="main-app" style="display:none">
-  <header>
-    <div>
-      <h1>Ride &amp; Grind</h1>
-      <div class="header-sub">Coffee Debt Tracker</div>
-    </div>
-    <button class="sync-btn" id="sync-btn" onclick="syncNow(true)">
-      <div class="sync-dot" id="sync-dot"></div>
-      <span id="sync-label">Sync</span>
-    </button>
-  </header>
-  <div class="sync-bar" id="sync-bar"></div>
-
-  <div class="nav-tabs">
-    <button class="nav-tab active" onclick="switchTab('today',this)">Today's Ride</button>
-    <button class="nav-tab" onclick="switchTab('settle',this)">Settle Up</button>
-    <button class="nav-tab" onclick="switchTab('history',this)">History</button>
-    <button class="nav-tab" onclick="switchTab('riders',this)">Riders</button>
-    <button class="nav-tab" onclick="switchTab('settings',this)">⚙</button>
-  </div>
-
-  <div id="view-today" class="view active">
-    <div id="owes-card"></div>
-    <div class="stats-row" id="today-stats"></div>
-    <p class="section-title">Tap to mark present · +/− to count coffees</p>
-    <div class="rider-grid" id="today-riders"></div>
-  </div>
-
-  <div id="view-settle" class="view">
-    <div id="settle-hero-wrap"></div>
-    <p class="section-title">All present riders — sorted by debt</p>
-    <div id="settle-list"></div>
-  </div>
-
-  <div id="view-history" class="view">
-    <p class="section-title">Past sessions</p>
-    <div id="history-list"></div>
-  </div>
-
-  <div id="view-riders" class="view">
-    <div class="add-form">
-      <input type="text" id="new-rider-name" placeholder="Rider name…" onkeydown="if(event.key==='Enter')addRider()">
-      <button class="btn btn-p" onclick="addRider()">Add</button>
-    </div>
-    <p class="section-title">All riders</p>
-    <div id="riders-list"></div>
-  </div>
-
-  <div id="view-settings" class="view">
-    <p class="section-title">GitHub connection</p>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;">
-      <div style="font-size:13px;color:var(--text-muted);font-family:'DM Mono',monospace;margin-bottom:12px;" id="cfg-display"></div>
-      <button class="btn btn-d" onclick="disconnectGitHub()">Disconnect &amp; reset</button>
-    </div>
-    <p class="section-title">Danger zone</p>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;">
-      <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Clear all history and balances. Keeps your rider list.</p>
-      <button class="btn btn-d" onclick="resetBalances()">Reset all balances</button>
-    </div>
-  </div>
-</div>
-
-<!-- CONFIRM PAYMENT MODAL -->
-<div class="modal-overlay" id="pay-modal">
-  <div class="modal">
-    <h3>Confirm payment</h3>
-    <div class="modal-sub" id="pay-modal-sub"></div>
-    <div id="pay-modal-body"></div>
-    <button class="btn btn-s btn-full" onclick="closeModal()">Cancel</button>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
+<div id="app"></div>
+<div id="toast"></div>
 
 <script>
-// ── CONFIG ───────────────────────────────────────────────
-const CFG_KEY = 'rg_config_v2';
-function getConfig() { try { return JSON.parse(localStorage.getItem(CFG_KEY))||null; } catch(e){return null;} }
-function saveConfig(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
+// ================================================================
+// STATE
+// ================================================================
+const S = {
+  view: 'loading',
+  db: null,
+  groups: [],
+  group: null,
+  members: [],
+  stats: {},       // memberId → { attended, attendedYear, kmTotal, kmYear, paidFor, debt }
+  groupTotals: {}, // { totalRides, totalKm, totalCoffees }
+  rides: [],
+  ride: null,
+  regs: [],
+  attendance: [],
+  payments: [],
+};
 
-// ── GITHUB API ────────────────────────────────────────────
-const DATA_FILE = 'data.json';
-let _sha = null;
-
-async function ghFetch(method, path, body) {
-  const cfg = getConfig();
-  const res = await fetch(`https://api.github.com/repos/${cfg.owner}/${cfg.repo}/contents/${path}`, {
-    method,
-    headers: {
-      'Authorization': `Bearer ${cfg.token}`,
-      'Accept': 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Content-Type': 'application/json'
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
-  if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.message||`HTTP ${res.status}`); }
-  return res.json();
+// ================================================================
+// SUPABASE INIT
+// ================================================================
+function initDb() {
+  const url = localStorage.getItem('sb_url');
+  const key = localStorage.getItem('sb_key');
+  if (!url || !key) return false;
+  S.db = supabase.createClient(url, key);
+  return true;
 }
 
-async function ghLoad() {
-  try {
-    const file = await ghFetch('GET', DATA_FILE);
-    _sha = file.sha;
-    return JSON.parse(atob(file.content.replace(/\n/g,'')));
-  } catch(e) {
-    if (e.message && (e.message.includes('Not Found') || e.message.includes('404'))) return defaultData();
-    throw e;
-  }
+// ================================================================
+// TOAST
+// ================================================================
+let toastTimer;
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (type ? ' toast-' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
 }
 
-async function ghSave(data) {
-  const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
-  const res = await ghFetch('PUT', DATA_FILE, {
-    message: `session update ${new Date().toISOString()}`,
-    content,
-    ...(_sha ? {sha:_sha} : {})
-  });
-  _sha = res.content.sha;
-}
-
-// ── DATA ──────────────────────────────────────────────────
-function defaultData() { return { riders:[], sessions:[], todayPresent:[], todayCoffees:{} }; }
-let D = defaultData();
-let _dirty = false;
-let _autoTimer = null;
-
-function markDirty() {
-  _dirty = true;
-  setSyncDot('dirty');
-  clearTimeout(_autoTimer);
-  _autoTimer = setTimeout(()=>syncNow(false), 5000);
-}
-
-async function syncNow(manual=false) {
-  clearTimeout(_autoTimer);
-  if (!_dirty && _sha && !manual) return;
-  setSyncLabel('Syncing…'); setSyncBtn(true);
-  try {
-    // Pull latest then push (last-write-wins on rider balances, local wins for today state)
-    const remote = await ghLoad();
-    // If remote riders differ and we haven't changed any balances locally today, adopt remote riders
-    if (remote && remote.riders) {
-      // Merge: remote is the truth for completed balance data
-      // Preserve local todayPresent and todayCoffees since those are session-in-progress
-      const localToday = { todayPresent: D.todayPresent, todayCoffees: D.todayCoffees };
-      D = remote;
-      D.todayPresent = localToday.todayPresent;
-      D.todayCoffees = localToday.todayCoffees;
-    }
-    await ghSave(D);
-    _dirty = false;
-    setSyncDot('ok'); setSyncLabel('Synced'); setSyncBtn(false);
-    showBar('ok', `Synced at ${now()}`);
-    renderAll();
-  } catch(e) {
-    setSyncDot('error'); setSyncLabel('Error'); setSyncBtn(false);
-    showBar('err', `Sync failed: ${e.message}`);
-  }
-}
-
-async function pullLatest() {
-  setSyncLabel('Loading…'); setSyncBtn(true);
-  try {
-    D = await ghLoad();
-    _dirty = false;
-    setSyncDot('ok'); setSyncLabel('Synced'); setSyncBtn(false);
-    showBar('ok', `Refreshed at ${now()}`);
-    renderAll();
-  } catch(e) {
-    setSyncDot('error'); setSyncLabel('Offline'); setSyncBtn(false);
-    showBar('err', `Load failed: ${e.message}`);
-  }
-}
-
-// ── SYNC UI ──────────────────────────────────────────────
-function setSyncDot(s) { const d=document.getElementById('sync-dot'); d.className='sync-dot'+(s==='dirty'?' dirty':s==='error'?' error':''); }
-function setSyncLabel(t) { document.getElementById('sync-label').textContent=t; }
-function setSyncBtn(busy) { document.getElementById('sync-btn').style.opacity=busy?'0.6':'1'; }
-let _barTimer;
-function showBar(type, msg) {
-  const b=document.getElementById('sync-bar');
-  b.textContent=msg; b.className=`sync-bar show ${type}`;
-  clearTimeout(_barTimer); _barTimer=setTimeout(()=>b.className='sync-bar',5000);
-}
-function now() { return new Date().toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'}); }
-
-// ── HELPERS ──────────────────────────────────────────────
-function initials(name) { return name.trim().split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2); }
-function getNet(r) { return r.coffeesDrank - r.coffeesPaid; }
-function debtClass(n) { return n>0?'dp':n<0?'dn':'dz'; }
-function badge(n) { return `<span class="rider-debt ${debtClass(n)}">${n>0?'+':''}${n}</span>`; }
-function topPresent() {
-  const present = D.riders.filter(r=>D.todayPresent.includes(r.id));
-  if (!present.length) return null;
-  return [...present].sort((a,b)=>getNet(b)-getNet(a))[0];
-}
-function totalCoffeesToday() { return Object.values(D.todayCoffees).reduce((a,b)=>a+b,0); }
-
-function toast(msg) {
-  const el=document.getElementById('toast');
-  el.textContent=msg; el.classList.add('show');
-  setTimeout(()=>el.classList.remove('show'),2600);
-}
-
-// ── TODAY VIEW ────────────────────────────────────────────
-function renderToday() {
-  const present = D.riders.filter(r=>D.todayPresent.includes(r.id));
-  const total = totalCoffeesToday();
-  const top = topPresent();
-
-  document.getElementById('today-stats').innerHTML=`
-    <div class="stat-box"><div class="val">${present.length}</div><div class="lbl">Present</div></div>
-    <div class="stat-box"><div class="val">${total}</div><div class="lbl">Coffees</div></div>
-    <div class="stat-box"><div class="val">${D.riders.length}</div><div class="lbl">Riders</div></div>`;
-
-  const oc = document.getElementById('owes-card');
-  if (!top) {
-    oc.innerHTML=`<div class="payer-card no-payer"><div class="pc-label">Recommended payer</div><div class="pc-name">Mark riders present to see who owes</div></div>`;
-  } else {
-    const net=getNet(top);
-    if (net>0) {
-      oc.innerHTML=`<div class="payer-card has-payer"><div class="pc-label">Recommended payer</div><div class="pc-name">${top.name}</div><div class="pc-reason">owes ${net} coffee${net!==1?'s':''} overall — highest debt present</div></div>`;
-    } else {
-      oc.innerHTML=`<div class="payer-card no-payer"><div class="pc-label">All square</div><div class="pc-name">No one owes — take turns ☕</div></div>`;
-    }
-  }
-
-  const grid=document.getElementById('today-riders');
-  if (!D.riders.length) { grid.innerHTML=`<div class="empty-state"><div class="icon">🚴</div>Add riders in the Riders tab first</div>`; return; }
-
-  grid.innerHTML=D.riders.map(r=>{
-    const isPresent=D.todayPresent.includes(r.id);
-    const coffees=D.todayCoffees[r.id]||0;
-    const net=getNet(r);
-    const isTop=isPresent&&top&&r.id===top.id&&net>0;
-    return `<div class="rider-card${isPresent?' present':''}${isTop?' top-payer':''}" onclick="togglePresent('${r.id}')">
-      <div class="avatar">${initials(r.name)}</div>
-      <div class="rider-info">
-        <div class="rider-name">${r.name}${isTop?' 👑':''}</div>
-        <div class="rider-stats">drank: ${r.coffeesDrank} · paid: ${r.coffeesPaid}</div>
-        ${isPresent?`<div class="coffee-counter" onclick="event.stopPropagation()">
-          <button class="counter-btn" onclick="changeCoffee('${r.id}',-1)">−</button>
-          <span class="counter-val">${coffees}</span>
-          <button class="counter-btn" onclick="changeCoffee('${r.id}',1)">+</button>
-          <span style="font-size:11px;color:var(--text-faint);margin-left:2px;">today</span>
-        </div>`:''}
-      </div>
-      ${badge(net)}
-    </div>`;
-  }).join('');
-}
-
-function togglePresent(id) {
-  const idx=D.todayPresent.indexOf(id);
-  if (idx===-1) { D.todayPresent.push(id); if(!D.todayCoffees[id]) D.todayCoffees[id]=1; }
-  else { D.todayPresent.splice(idx,1); delete D.todayCoffees[id]; }
-  markDirty(); renderToday(); renderSettle();
-}
-
-function changeCoffee(id, delta) {
-  D.todayCoffees[id]=Math.max(0,(D.todayCoffees[id]||0)+delta);
-  markDirty(); renderToday(); renderSettle();
-}
-
-// ── SETTLE VIEW ───────────────────────────────────────────
-function renderSettle() {
-  const present=D.riders.filter(r=>D.todayPresent.includes(r.id));
-  const hero=document.getElementById('settle-hero-wrap');
-  const list=document.getElementById('settle-list');
-  const total=totalCoffeesToday();
-
-  if (!present.length) {
-    hero.innerHTML=`<div class="settle-hero empty"><div class="sh-eyebrow">Who pays?</div><div class="sh-name">No one present yet</div><div class="sh-sub">Mark riders in Today's Ride first</div></div>`;
-    list.innerHTML=''; return;
-  }
-
-  const sorted=[...present].sort((a,b)=>getNet(b)-getNet(a));
-  const top=sorted[0];
-  const net=getNet(top);
-
-  if (net>0) {
-    hero.innerHTML=`<div class="settle-hero has-payer">
-      <div class="sh-eyebrow">Recommended payer · ${total} coffee${total!==1?'s':''} today</div>
-      <div class="sh-name">${top.name}</div>
-      <div class="sh-sub">owes ${net} coffee${net!==1?'s':''} overall — highest debt among present riders</div>
-      <button class="sh-confirm-btn" onclick="openPayModal('${top.id}')">✓ Confirm ${top.name} pays</button>
-    </div>`;
-  } else {
-    hero.innerHTML=`<div class="settle-hero even">
-      <div class="sh-eyebrow">${total} coffee${total!==1?'s':''} today</div>
-      <div class="sh-name">All square — choose below</div>
-      <div class="sh-sub">Everyone's even, pick whoever wants to pay</div>
-    </div>`;
-  }
-
-  list.innerHTML=sorted.map((r,i)=>{
-    const c=D.todayCoffees[r.id]||0;
-    const n=getNet(r);
-    return `<div class="settle-card${i===0&&n>0?' top':''}">
-      <div class="avatar">${initials(r.name)}</div>
-      <div style="flex:1;min-width:0">
-        <div class="rider-name">${r.name}${i===0&&n>0?' 👑':''}</div>
-        <div class="rider-stats">${c} coffee${c!==1?'s':''} today · net: ${n>0?'+':''}${n}</div>
-      </div>
-      ${badge(n)}
-      <button class="btn btn-s" style="font-size:12px;padding:6px 12px;white-space:nowrap;" onclick="openPayModal('${r.id}')">They paid</button>
-    </div>`;
-  }).join('');
-}
-
-function openPayModal(payerId) {
-  const payer=D.riders.find(r=>r.id===payerId);
-  if (!payer) return;
-  const total=totalCoffeesToday();
-  const net=getNet(payer);
-  document.getElementById('pay-modal-sub').textContent=`${payer.name} buys ${total} coffee${total!==1?'s':''} for the group.`;
-  document.getElementById('pay-modal-body').innerHTML=`
-    <div style="background:var(--accent-light);border-radius:var(--radius);padding:14px;margin-bottom:16px;">
-      <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;font-family:'DM Mono',monospace;">Balance after this round</div>
-      <div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:500;color:var(--accent);">${net>0?'+':''}${net} → ${net-total>0?'+':''}${net-total} coffees net</div>
-    </div>
-    <button class="btn btn-p btn-full" onclick="recordPayment('${payerId}')">✓ Confirm &amp; save to GitHub</button>`;
-  document.getElementById('pay-modal').classList.add('open');
-}
-
-function recordPayment(payerId) {
-  const total=totalCoffeesToday();
-  const payer=D.riders.find(r=>r.id===payerId);
-  if (!payer) return;
-
-  const sessionRiders=[];
-  D.todayPresent.forEach(rid=>{
-    const r=D.riders.find(x=>x.id===rid); if(!r) return;
-    const c=D.todayCoffees[rid]||0;
-    r.coffeesDrank+=c;
-    sessionRiders.push({id:rid,name:r.name,coffees:c});
-  });
-  payer.coffeesPaid+=total;
-  D.sessions.unshift({id:Date.now(),date:new Date().toISOString(),payerId,payerName:payer.name,totalCoffees:total,riders:sessionRiders});
-  D.todayPresent=[]; D.todayCoffees={};
-
+// ================================================================
+// MODAL
+// ================================================================
+function openModal(html) {
   closeModal();
-  toast(`Saving… ${payer.name} paid for ${total} coffee${total!==1?'s':''}!`);
-  _dirty=true;
-  syncNow(true); // force immediate sync for payment
-  renderAll();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-root';
+  overlay.innerHTML = `<div class="modal"><div class="modal-handle"></div>${html}</div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+  document.body.appendChild(overlay);
 }
 
-function closeModal() { document.getElementById('pay-modal').classList.remove('open'); }
-
-// ── HISTORY ───────────────────────────────────────────────
-function renderHistory() {
-  const list=document.getElementById('history-list');
-  if (!D.sessions.length) { list.innerHTML=`<div class="empty-state"><div class="icon">📋</div>No sessions recorded yet</div>`; return; }
-  list.innerHTML=D.sessions.map(s=>{
-    const dt=new Date(s.date);
-    const ds=dt.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
-    return `<div class="history-entry">
-      <div class="history-date">${ds}</div>
-      <div class="history-payer">${s.payerName} paid for ${s.totalCoffees} coffee${s.totalCoffees!==1?'s':''}</div>
-      <div class="history-detail">${s.riders.map(r=>`${r.name} (${r.coffees})`).join(' · ')}</div>
-    </div>`;
-  }).join('');
+function closeModal() {
+  document.getElementById('modal-root')?.remove();
 }
 
-// ── RIDERS ────────────────────────────────────────────────
-function renderRiders() {
-  const list=document.getElementById('riders-list');
-  if (!D.riders.length) { list.innerHTML=`<div class="empty-state"><div class="icon">👥</div>Add your riding crew above</div>`; return; }
-  list.innerHTML=D.riders.map(r=>{
-    const net=getNet(r);
-    return `<div class="manage-card">
-      <div class="avatar">${initials(r.name)}</div>
-      <div style="flex:1;min-width:0">
-        <div class="rider-name">${r.name}</div>
-        <div class="rider-stats">drank: ${r.coffeesDrank} · paid: ${r.coffeesPaid}</div>
-      </div>
-      <span class="tag ${net>0?'td':net<0?'tc':'te'}">${net>0?'+':''}${net}</span>
-      <button class="btn btn-d" style="padding:6px 10px;font-size:12px;" onclick="removeRider('${r.id}')">✕</button>
-    </div>`;
-  }).join('');
-}
-
-function addRider() {
-  const inp=document.getElementById('new-rider-name');
-  const name=inp.value.trim(); if(!name) return;
-  if (D.riders.find(r=>r.name.toLowerCase()===name.toLowerCase())) { toast('Already in the crew'); return; }
-  D.riders.push({id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),name,coffeesDrank:0,coffeesPaid:0});
-  markDirty(); inp.value=''; renderAll(); toast(`${name} added to the crew!`);
-}
-
-function removeRider(id) {
-  const r=D.riders.find(x=>x.id===id);
-  if (!confirm(`Remove ${r?.name}?`)) return;
-  D.riders=D.riders.filter(x=>x.id!==id);
-  D.todayPresent=D.todayPresent.filter(x=>x!==id);
-  delete D.todayCoffees[id];
-  markDirty(); renderAll(); toast('Rider removed');
-}
-
-function resetBalances() {
-  if (!confirm('Reset all balances and history? Riders will be kept.')) return;
-  D.sessions=[]; D.todayPresent=[]; D.todayCoffees={};
-  D.riders.forEach(r=>{r.coffeesDrank=0;r.coffeesPaid=0;});
-  _dirty=true; syncNow(true); renderAll(); toast('Balances reset');
-}
-
-function disconnectGitHub() {
-  if (!confirm('Clear connection settings? Your GitHub data file stays intact.')) return;
-  localStorage.removeItem(CFG_KEY); location.reload();
-}
-
-// ── NAV ───────────────────────────────────────────────────
-function switchTab(tab, el) {
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
-  document.getElementById('view-'+tab).classList.add('active');
-  el.classList.add('active');
-  // Pull fresh data when viewing settle or history tabs
-  if (tab==='settle'||tab==='history') pullLatest();
-}
-
-function renderAll() { renderToday(); renderSettle(); renderHistory(); renderRiders(); }
-
-// ── SETUP ─────────────────────────────────────────────────
-async function connectGitHub() {
-  const owner=document.getElementById('cfg-owner').value.trim();
-  const repo=document.getElementById('cfg-repo').value.trim();
-  const token=document.getElementById('cfg-token').value.trim();
-  const errEl=document.getElementById('setup-error');
-  errEl.style.display='none';
-  if (!owner||!repo||!token) { errEl.textContent='Please fill in all fields.'; errEl.style.display='block'; return; }
-  const btn=document.getElementById('connect-btn');
-  btn.textContent='Connecting…'; btn.disabled=true;
-  saveConfig({owner,repo,token});
+// ================================================================
+// ROUTER
+// ================================================================
+async function go(view, id = null) {
+  S.view = 'loading';
+  render();
   try {
-    D=await ghLoad();
-    if (!_sha) await ghSave(D); // create file if brand new repo
-    document.getElementById('loading').style.display='none';
-    document.getElementById('setup-screen').style.display='none';
-    showApp(); renderAll();
-  } catch(e) {
-    errEl.textContent=`Connection failed: ${e.message}. Check the token has Contents: Read and write for this repo.`;
-    errEl.style.display='block';
-    btn.textContent='Connect to GitHub →'; btn.disabled=false;
-    localStorage.removeItem(CFG_KEY);
+    if (view === 'home') {
+      await loadGroups();
+    } else if (view === 'group') {
+      await loadGroup(id);
+    } else if (view === 'ride') {
+      await loadRide(id);
+      if (S.ride && (!S.group || S.group.id !== S.ride.group_id)) {
+        await loadGroup(S.ride.group_id);
+      }
+    }
+    S.view = view;
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to load: ' + err.message, 'error');
+    S.view = view;
+  }
+  render();
+}
+
+// ================================================================
+// DATA LAYER
+// ================================================================
+async function loadGroups() {
+  const { data, error } = await S.db.from('groups').select('*').order('name');
+  if (error) throw error;
+  S.groups = data || [];
+}
+
+async function loadGroup(id) {
+  const [gRes, mRes, rRes] = await Promise.all([
+    S.db.from('groups').select('*').eq('id', id).single(),
+    S.db.from('members').select('*').eq('group_id', id).order('name'),
+    S.db.from('rides').select('*').eq('group_id', id).order('scheduled_date', { ascending: false }),
+  ]);
+  if (gRes.error) throw gRes.error;
+  S.group = gRes.data;
+  S.members = mRes.data || [];
+  S.rides = rRes.data || [];
+  await computeStats();
+}
+
+async function computeStats() {
+  S.stats = {};
+  S.members.forEach(m => {
+    S.stats[m.id] = { attended: 0, attendedYear: 0, kmTotal: 0, kmYear: 0, paidFor: 0, debt: 0 };
+  });
+
+  const memberIds = S.members.map(m => m.id);
+  if (!memberIds.length) return;
+
+  const thisYear = new Date().getFullYear().toString();
+
+  // Attendance joined with rides for km + date
+  const { data: att } = await S.db
+    .from('ride_attendance')
+    .select('member_id, rides(km_distance, scheduled_date)')
+    .in('member_id', memberIds);
+
+  // Payments
+  const { data: pays } = await S.db
+    .from('payments')
+    .select('payer_id, coffees_count')
+    .in('payer_id', memberIds);
+
+  (att || []).forEach(a => {
+    const st = S.stats[a.member_id];
+    if (!st) return;
+    st.attended++;
+    const year = (a.rides?.scheduled_date || '').slice(0, 4);
+    const km = a.rides?.km_distance || 0;
+    if (year === thisYear) { st.attendedYear++; st.kmYear += km; }
+    st.kmTotal += km;
+  });
+
+  (pays || []).forEach(p => {
+    const st = S.stats[p.payer_id];
+    if (st) st.paidFor += p.coffees_count;
+  });
+
+  S.members.forEach(m => {
+    const st = S.stats[m.id];
+    st.debt = st.attended - st.paidFor;
+  });
+
+  // Group-level totals
+  const completedRides = S.rides.filter(r => r.status === 'completed');
+  const totalKm = completedRides.reduce((s, r) => s + (r.km_distance || 0), 0);
+  const totalCoffees = Object.values(S.stats).reduce((s, st) => s + st.attended, 0);
+  S.groupTotals = { totalRides: completedRides.length, totalKm, totalCoffees };
+}
+
+async function loadRide(id) {
+  const [rRes, regRes, attRes, payRes] = await Promise.all([
+    S.db.from('rides').select('*, trail_master:members(name)').eq('id', id).single(),
+    S.db.from('ride_registrations').select('*, members(name)').eq('ride_id', id),
+    S.db.from('ride_attendance').select('*, members(name)').eq('ride_id', id),
+    S.db.from('payments').select('*, members(name)').eq('ride_id', id).order('paid_at'),
+  ]);
+  if (rRes.error) throw rRes.error;
+  S.ride = rRes.data;
+  S.regs = regRes.data || [];
+  S.attendance = attRes.data || [];
+  S.payments = payRes.data || [];
+}
+
+// ================================================================
+// RENDER DISPATCHER
+// ================================================================
+function render() {
+  const app = document.getElementById('app');
+  switch (S.view) {
+    case 'loading': app.innerHTML = `<div class="loading"><div class="spinner"></div><p>Loading…</p></div>`; break;
+    case 'setup':   app.innerHTML = renderSetup(); break;
+    case 'home':    app.innerHTML = renderHome(); break;
+    case 'group':   app.innerHTML = renderGroup(); break;
+    case 'ride':    app.innerHTML = renderRide(); break;
+  }
+  bindHandlers();
+}
+
+// ================================================================
+// SETUP VIEW
+// ================================================================
+const SQL = `-- Paste this into Supabase SQL Editor and click Run
+create table groups (
+  id uuid default gen_random_uuid() primary key,
+  name text not null,
+  ntfy_topic text,
+  created_at timestamptz default now()
+);
+create table members (
+  id uuid default gen_random_uuid() primary key,
+  group_id uuid references groups(id) on delete cascade,
+  name text not null,
+  created_at timestamptz default now()
+);
+create table rides (
+  id uuid default gen_random_uuid() primary key,
+  group_id uuid references groups(id) on delete cascade,
+  scheduled_date date not null,
+  status text default 'upcoming'
+    check (status in ('upcoming','active','completed')),
+  trail_master_id uuid references members(id),
+  km_distance numeric(7,1),
+  created_at timestamptz default now()
+);
+create table ride_registrations (
+  id uuid default gen_random_uuid() primary key,
+  ride_id uuid references rides(id) on delete cascade,
+  member_id uuid references members(id) on delete cascade,
+  ride_type text default 'ride'
+    check (ride_type in ('ride','coffee')),
+  unique(ride_id, member_id)
+);
+create table ride_attendance (
+  id uuid default gen_random_uuid() primary key,
+  ride_id uuid references rides(id) on delete cascade,
+  member_id uuid references members(id) on delete cascade,
+  unique(ride_id, member_id)
+);
+create table payments (
+  id uuid default gen_random_uuid() primary key,
+  ride_id uuid references rides(id) on delete cascade,
+  payer_id uuid references members(id) on delete cascade,
+  coffees_count integer not null,
+  paid_at timestamptz default now()
+);
+-- Allow open access (no login required for your friends)
+alter table groups             enable row level security;
+alter table members            enable row level security;
+alter table rides              enable row level security;
+alter table ride_registrations enable row level security;
+alter table ride_attendance    enable row level security;
+alter table payments           enable row level security;
+create policy "open" on groups             for all using (true) with check (true);
+create policy "open" on members            for all using (true) with check (true);
+create policy "open" on rides              for all using (true) with check (true);
+create policy "open" on ride_registrations for all using (true) with check (true);
+create policy "open" on ride_attendance    for all using (true) with check (true);
+create policy "open" on payments           for all using (true) with check (true);`;
+
+function renderSetup() {
+  const savedUrl = esc(localStorage.getItem('sb_url') || '');
+  const savedKey = esc(localStorage.getItem('sb_key') || '');
+  return `
+    <div class="setup-hero">
+      <div class="hero-icon">🚴☕</div>
+      <h1>Ride &amp; Grind</h1>
+      <p>Track whose turn it is to buy the coffees</p>
+    </div>
+    <div class="page">
+      <div class="card">
+        <h2 style="margin-bottom:14px">One-time setup</h2>
+        <div class="step-row"><div class="step-num">1</div>
+          <p>Create a free account at <a href="https://supabase.com" target="_blank">supabase.com</a> and start a new project (pick any region, remember the database password).</p>
+        </div>
+        <div class="step-row"><div class="step-num">2</div>
+          <p>In your project, open the <strong>SQL Editor</strong>, paste the schema below, and click <strong>Run</strong>.</p>
+        </div>
+        <div class="step-row"><div class="step-num">3</div>
+          <p>Go to <strong>Project Settings → API</strong>. Copy the <strong>Project URL</strong> and the <strong>anon / public</strong> key into the fields below.</p>
+        </div>
+        <details>
+          <summary style="cursor:pointer;font-size:0.85rem;font-weight:600;color:var(--green);margin-top:8px">Show SQL schema ›</summary>
+          <div class="code-block">${SQL.replace(/</g,'&lt;')}</div>
+          <button class="btn btn-ghost btn-sm btn-full mt-2" onclick="copySQL()">Copy SQL</button>
+        </details>
+      </div>
+      <div class="card">
+        <h2 style="margin-bottom:14px">Connect Supabase</h2>
+        <div class="form-group">
+          <label>Project URL</label>
+          <input id="cfg-url" type="url" placeholder="https://xxxx.supabase.co" value="${savedUrl}">
+        </div>
+        <div class="form-group">
+          <label>Anon / Public Key</label>
+          <input id="cfg-key" type="text" placeholder="eyJhbGciOiJIUzI1NiIs…" value="${savedKey}">
+        </div>
+        <button class="btn btn-primary btn-full" data-action="save-config">Connect &amp; Start →</button>
+      </div>
+    </div>`;
+}
+
+// ================================================================
+// HOME VIEW
+// ================================================================
+function renderHome() {
+  const items = S.groups.length
+    ? S.groups.map(g => `
+        <div class="group-item" data-action="open-group" data-id="${g.id}">
+          <div class="group-avatar">🚴</div>
+          <div class="group-info">
+            <div class="g-name">${esc(g.name)}</div>
+            <div class="g-sub">${g.ntfy_topic ? '🔔 Alerts on' : 'No alerts set up'}</div>
+          </div>
+          <span class="group-arrow">›</span>
+        </div>`).join('')
+    : `<div class="empty"><div class="empty-icon">🚴</div><p>No groups yet — create your first one below.</p></div>`;
+
+  return `
+    <div class="home-logo">
+      <div class="logo-icon">🚴☕</div>
+      <h1>Ride &amp; Grind</h1>
+      <p>Who's buying the coffees?</p>
+    </div>
+    <div class="page" style="padding-top:0">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:12px 14px 8px;border-bottom:1px solid var(--border)">
+          <div class="section-label" style="margin:0">Your Groups</div>
+        </div>
+        ${items}
+        <div style="padding:10px 14px">
+          <button class="btn btn-primary btn-full" data-action="new-group">+ New Group</button>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="align-self:center" data-action="settings">⚙ Settings</button>
+    </div>`;
+}
+
+// ================================================================
+// GROUP VIEW
+// ================================================================
+function renderGroup() {
+  if (!S.group) return `<div class="loading"><div class="spinner"></div></div>`;
+
+  const sorted = [...S.members].sort((a, b) =>
+    (S.stats[b.id]?.debt || 0) - (S.stats[a.id]?.debt || 0)
+  );
+
+  const lbRows = sorted.length
+    ? sorted.map((m, i) => {
+        const debt = S.stats[m.id]?.debt || 0;
+        const rankLabel = i === 0 ? '👑' : (i + 1);
+        return `
+          <div class="lb-row" data-action="member-stats" data-id="${m.id}">
+            <div class="rank rank-${i < 3 ? i + 1 : ''}">${rankLabel}</div>
+            <div class="lb-name">${esc(m.name)}</div>
+            <span class="badge ${debt > 0 ? 'badge-orange' : debt < 0 ? 'badge-green' : 'badge-gray'} lb-debt">
+              ${debt > 0 ? '+' + debt : debt} ☕
+            </span>
+          </div>`;
+      }).join('')
+    : `<div class="empty"><p>Add members to get started</p></div>`;
+
+  const upcoming = S.rides.filter(r => r.status !== 'completed');
+  const past = S.rides.filter(r => r.status === 'completed');
+
+  const upcomingHtml = upcoming.length
+    ? upcoming.map(r => rideItemHtml(r)).join('')
+    : `<p class="text-muted" style="padding:8px 0">No upcoming rides scheduled</p>`;
+
+  const { totalRides, totalKm, totalCoffees } = S.groupTotals;
+
+  return `
+    <div class="app-header">
+      <button class="back-btn" data-action="back">‹</button>
+      <h1>${esc(S.group.name)}</h1>
+      <div class="header-actions">
+        ${S.group.ntfy_topic
+          ? `<button class="header-btn" data-action="send-alert">🔔 Alert</button>`
+          : ''}
+        <button class="header-icon-btn" data-action="group-settings" title="Group settings">⚙</button>
+      </div>
+    </div>
+    <div class="page">
+
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:11px 14px 8px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+          <div class="section-label" style="margin:0">☕ Coffee Ledger</div>
+          <span style="font-size:0.72rem;color:var(--gray-400)">tap for stats</span>
+        </div>
+        <div style="padding:0 14px">${lbRows}</div>
+        <div style="padding:8px 14px;border-top:1px solid var(--border)">
+          <button class="btn btn-ghost btn-sm btn-full" data-action="add-member">+ Add Member</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-label">Group Stats</div>
+        <div class="stat-grid">
+          <div class="stat-item">
+            <div class="stat-value">${totalRides}</div>
+            <div class="stat-label">Rides completed</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${Math.round(totalKm).toLocaleString()}</div>
+            <div class="stat-label">Total km ridden</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${totalCoffees}</div>
+            <div class="stat-label">Coffees consumed</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-value">${S.members.length}</div>
+            <div class="stat-label">Members</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:11px 14px 8px;border-bottom:1px solid var(--border)">
+          <div class="section-label" style="margin:0">Upcoming Rides</div>
+        </div>
+        <div style="padding:0 14px">${upcomingHtml}</div>
+        <div style="padding:8px 14px;border-top:1px solid var(--border)">
+          <button class="btn btn-primary btn-full" data-action="new-ride">+ Schedule Ride</button>
+        </div>
+      </div>
+
+      ${past.length ? `
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:11px 14px 8px;border-bottom:1px solid var(--border)">
+            <div class="section-label" style="margin:0">Past Rides</div>
+          </div>
+          <div style="padding:0 14px">${past.slice(0, 10).map(r => rideItemHtml(r)).join('')}</div>
+        </div>` : ''}
+
+    </div>`;
+}
+
+function rideItemHtml(r) {
+  const d = new Date(r.scheduled_date + 'T00:00:00');
+  const day = d.getDate();
+  const month = d.toLocaleString('default', { month: 'short' });
+  const isActive = r.status === 'active';
+  const badge = {
+    upcoming:  '<span class="badge badge-blue">Upcoming</span>',
+    active:    '<span class="badge badge-orange">🚴 Ride Day</span>',
+    completed: '<span class="badge badge-gray">Done</span>',
+  }[r.status] || '';
+  const sub = r.km_distance
+    ? `${r.km_distance} km`
+    : r.status === 'completed' ? 'No distance logged' : 'Tap to manage';
+  return `
+    <div class="ride-item" data-action="open-ride" data-id="${r.id}">
+      <div class="ride-date-box ${isActive ? 'active-ride' : ''}">
+        <div class="rd-day">${day}</div>
+        <div class="rd-month">${month}</div>
+      </div>
+      <div class="ride-info">
+        <div class="ri-title">${badge}</div>
+        <div class="ri-sub">${esc(sub)}</div>
+      </div>
+      <span style="color:var(--gray-400);font-size:1.1rem">›</span>
+    </div>`;
+}
+
+// ================================================================
+// RIDE VIEW
+// ================================================================
+function renderRide() {
+  if (!S.ride) return `<div class="loading"><div class="spinner"></div></div>`;
+
+  const d = new Date(S.ride.scheduled_date + 'T00:00:00');
+  const dateStr = d.toLocaleDateString('default', { weekday: 'long', day: 'numeric', month: 'long' });
+  const statusBadge = {
+    upcoming:  '<span class="badge badge-blue">📅 Upcoming</span>',
+    active:    '<span class="badge badge-orange">🚴 Ride Day</span>',
+    completed: '<span class="badge badge-gray">✅ Complete</span>',
+  }[S.ride.status] || '';
+  const kmBadge = S.ride.km_distance
+    ? `<span class="badge badge-green">🛣 ${S.ride.km_distance} km</span>`
+    : '';
+
+  let body = '';
+  if (S.ride.status === 'upcoming')   body = renderUpcoming();
+  else if (S.ride.status === 'active') body = renderActive();
+  else                                 body = renderCompleted();
+
+  return `
+    <div class="app-header">
+      <button class="back-btn" data-action="back-group">‹</button>
+      <h1>${dateStr}</h1>
+    </div>
+    <div class="page">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${statusBadge}${kmBadge}</div>
+      ${body}
+    </div>`;
+}
+
+function renderUpcoming() {
+  // Determine trail master from registered riders
+  const regIds = S.regs.map(r => r.member_id);
+  const candidates = S.members.filter(m => regIds.includes(m.id));
+  const tm = candidates.sort((a, b) => (S.stats[b.id]?.debt || 0) - (S.stats[a.id]?.debt || 0))[0];
+
+  const tmBanner = tm ? `
+    <div class="tm-banner">
+      <div class="tm-icon">🦅</div>
+      <div>
+        <div class="tm-label">Trail Master</div>
+        <div class="tm-name">${esc(tm.name)}</div>
+        <div class="tm-sub">Owes ${S.stats[tm.id]?.debt || 0} coffees — leads the route</div>
+      </div>
+    </div>` : '';
+
+  const regRows = S.members.map(m => {
+    const reg = S.regs.find(r => r.member_id === m.id);
+    return `
+      <div class="reg-item">
+        <div class="reg-name">${esc(m.name)}</div>
+        <div class="reg-toggle">
+          <button class="reg-btn ${reg?.ride_type === 'ride' ? 'on-ride' : ''}"
+            data-action="reg-set" data-mid="${m.id}" data-type="ride">🚴 Ride</button>
+          <button class="reg-btn ${reg?.ride_type === 'coffee' ? 'on-coffee' : ''}"
+            data-action="reg-set" data-mid="${m.id}" data-type="coffee">☕ Coffee</button>
+          ${reg ? `<button class="reg-btn on-remove" data-action="reg-remove" data-mid="${m.id}">✕</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  return `
+    ${tmBanner}
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:11px 14px 8px;border-bottom:1px solid var(--border)">
+        <div class="section-label" style="margin:0">Who's coming?</div>
+      </div>
+      <div style="padding:0 14px">${regRows || '<div class="empty"><p>No members in this group</p></div>'}</div>
+    </div>
+    <button class="btn btn-primary btn-full" data-action="start-ride"
+      ${S.regs.length === 0 ? 'disabled' : ''}>
+      Start Ride Day 🚴
+    </button>
+    <button class="btn btn-danger btn-sm btn-full" data-action="delete-ride">Delete this ride</button>`;
+}
+
+function renderActive() {
+  const attIds = S.attendance.map(a => a.member_id);
+  const attRows = S.members.map(m => {
+    const present = attIds.includes(m.id);
+    const reg = S.regs.find(r => r.member_id === m.id);
+    const typeLabel = reg ? (reg.ride_type === 'coffee' ? '☕ coffee only' : '🚴 rider') : '';
+    return `
+      <div class="att-item" data-action="toggle-att" data-mid="${m.id}">
+        <div class="att-check ${present ? 'checked' : ''}">✓</div>
+        <div class="att-name">${esc(m.name)}</div>
+        <div class="att-type">${typeLabel}</div>
+      </div>`;
+  }).join('');
+
+  const present = S.members.filter(m => attIds.includes(m.id));
+  const payer = [...present].sort((a, b) => (S.stats[b.id]?.debt || 0) - (S.stats[a.id]?.debt || 0))[0];
+
+  const payerBanner = payer
+    ? `<div class="payer-banner">
+        <div class="payer-icon">💳</div>
+        <div>
+          <div class="payer-label">Next to pay</div>
+          <div class="payer-name">${esc(payer.name)}</div>
+          <div class="payer-sub">Owes ${S.stats[payer.id]?.debt || 0} coffees · ${present.length} people present</div>
+        </div>
+       </div>`
+    : `<div class="card text-center text-muted" style="padding:18px">Tick who's at the coffee shop to nominate the payer</div>`;
+
+  const existingPayments = S.payments.length
+    ? `<div class="card"><div class="section-label">Payments logged</div>` +
+      S.payments.map(p => `
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray-100);font-size:0.88rem">
+          <span>✅</span>
+          <span><strong>${esc(p.members?.name)}</strong> paid for ${p.coffees_count} coffees</span>
+        </div>`).join('') + `</div>`
+    : '';
+
+  return `
+    <div class="card">
+      <div class="section-label">Log ride distance</div>
+      <div style="display:flex;gap:8px">
+        <input id="km-input" type="number" min="0" step="0.1"
+          placeholder="Distance in km" value="${S.ride.km_distance || ''}"
+          style="flex:1">
+        <button class="btn btn-outline" style="flex-shrink:0" data-action="save-km">Save</button>
+      </div>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:11px 14px 8px;border-bottom:1px solid var(--border)">
+        <div class="section-label" style="margin:0">Who's at the café?</div>
+      </div>
+      <div style="padding:0 14px">${attRows}</div>
+    </div>
+
+    ${payerBanner}
+    ${existingPayments}
+
+    ${payer && present.length > 0 ? `
+      <button class="btn btn-accent btn-full"
+        data-action="log-payment"
+        data-payer="${payer.id}"
+        data-count="${present.length}">
+        ☕ Log: ${esc(payer.name)} paid for ${present.length} coffees
+      </button>` : ''}
+
+    <button class="btn btn-ghost btn-full" data-action="complete-ride">
+      ✅ Mark Ride Complete
+    </button>`;
+}
+
+function renderCompleted() {
+  const attNames = S.attendance.map(a => esc(a.members?.name)).join(', ') || 'None logged';
+  const regRiders = S.regs.filter(r => r.ride_type === 'ride').map(r => esc(r.members?.name)).join(', ') || '—';
+  const paymentsHtml = S.payments.length
+    ? S.payments.map(p => `
+        <div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--gray-100);font-size:0.88rem">
+          <span>☕</span>
+          <span><strong>${esc(p.members?.name)}</strong> paid for ${p.coffees_count} coffees</span>
+        </div>`).join('')
+    : '<p class="text-muted">No payment recorded</p>';
+
+  return `
+    <div class="card">
+      <div class="section-label">Ride Summary</div>
+      <div class="stat-grid">
+        <div class="stat-item">
+          <div class="stat-value">${S.ride.km_distance ?? '—'}</div>
+          <div class="stat-label">km ridden</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">${S.attendance.length}</div>
+          <div class="stat-label">at the café</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-label">Coffee payment</div>
+      ${paymentsHtml}
+    </div>
+    <div class="card">
+      <div class="section-label">Registered riders</div>
+      <p style="font-size:0.88rem;color:var(--gray-600)">${regRiders}</p>
+      <div class="section-label mt-3">At the café</div>
+      <p style="font-size:0.88rem;color:var(--gray-600)">${attNames}</p>
+    </div>`;
+}
+
+// ================================================================
+// EVENT BINDING
+// ================================================================
+function bindHandlers() {
+  document.querySelectorAll('[data-action]').forEach(el => {
+    el.addEventListener('click', onAction, { once: true });
+    el.addEventListener('click', rebind);
+  });
+}
+
+function rebind(e) {
+  // Re-attach once handler after a short delay (prevents double-fire)
+  const el = e.currentTarget;
+  setTimeout(() => {
+    el.removeEventListener('click', onAction);
+    el.removeEventListener('click', rebind);
+    el.addEventListener('click', onAction, { once: true });
+    el.addEventListener('click', rebind);
+  }, 600);
+}
+
+async function onAction(e) {
+  const el = e.currentTarget;
+  const action = el.dataset.action;
+  try {
+    switch (action) {
+      case 'save-config':    await doSaveConfig(); break;
+      case 'open-group':     await go('group', el.dataset.id); break;
+      case 'new-group':      showNewGroupModal(); break;
+      case 'settings':       showSettingsModal(); break;
+      case 'back':           await go('home'); break;
+      case 'group-settings': showGroupSettingsModal(); break;
+      case 'send-alert':     showAlertModal(); break;
+      case 'add-member':     showAddMemberModal(); break;
+      case 'new-ride':       showNewRideModal(); break;
+      case 'member-stats':   showMemberStatsModal(el.dataset.id); break;
+      case 'open-ride':      await go('ride', el.dataset.id); break;
+      case 'back-group':     await go('group', S.ride.group_id); break;
+      case 'reg-set':        await doRegSet(el.dataset.mid, el.dataset.type); break;
+      case 'reg-remove':     await doRegRemove(el.dataset.mid); break;
+      case 'start-ride':     await doStartRide(); break;
+      case 'delete-ride':    await doDeleteRide(); break;
+      case 'toggle-att':     await doToggleAtt(el.dataset.mid); break;
+      case 'log-payment':    await doLogPayment(el.dataset.payer, parseInt(el.dataset.count)); break;
+      case 'save-km':        await doSaveKm(); break;
+      case 'complete-ride':  await doCompleteRide(); break;
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('Error: ' + err.message, 'error');
   }
 }
 
-function showApp() {
-  document.getElementById('main-app').style.display='block';
-  const cfg=getConfig();
-  document.getElementById('cfg-display').textContent=`${cfg.owner}/${cfg.repo} → data.json`;
+// ================================================================
+// ACTIONS
+// ================================================================
+async function doSaveConfig() {
+  const url = document.getElementById('cfg-url').value.trim();
+  const key = document.getElementById('cfg-key').value.trim();
+  if (!url || !key) { showToast('Enter both URL and key', 'error'); return; }
+  localStorage.setItem('sb_url', url);
+  localStorage.setItem('sb_key', key);
+  S.db = supabase.createClient(url, key);
+  await go('home');
 }
 
-// ── INIT ──────────────────────────────────────────────────
+async function doRegSet(memberId, type) {
+  const existing = S.regs.find(r => r.member_id === memberId);
+  if (existing) {
+    await S.db.from('ride_registrations').update({ ride_type: type }).eq('id', existing.id);
+    existing.ride_type = type;
+  } else {
+    const { data, error } = await S.db.from('ride_registrations')
+      .insert({ ride_id: S.ride.id, member_id: memberId, ride_type: type })
+      .select('*, members(name)').single();
+    if (error) throw error;
+    S.regs.push(data);
+  }
+  render();
+}
+
+async function doRegRemove(memberId) {
+  const reg = S.regs.find(r => r.member_id === memberId);
+  if (!reg) return;
+  await S.db.from('ride_registrations').delete().eq('id', reg.id);
+  S.regs = S.regs.filter(r => r.member_id !== memberId);
+  render();
+}
+
+async function doStartRide() {
+  if (!confirm('Start ride day? This locks registrations.')) return;
+  const regIds = S.regs.map(r => r.member_id);
+  const candidates = S.members.filter(m => regIds.includes(m.id));
+  const tm = candidates.sort((a, b) => (S.stats[b.id]?.debt || 0) - (S.stats[a.id]?.debt || 0))[0];
+  await S.db.from('rides').update({ status: 'active', trail_master_id: tm?.id || null }).eq('id', S.ride.id);
+  await loadRide(S.ride.id);
+  S.view = 'ride';
+  render();
+  showToast('Ride day started! 🚴', 'success');
+}
+
+async function doCompleteRide() {
+  if (!confirm('Mark this ride as complete?')) return;
+  await S.db.from('rides').update({ status: 'completed' }).eq('id', S.ride.id);
+  await loadRide(S.ride.id);
+  S.view = 'ride';
+  render();
+  showToast('Ride complete! ☕', 'success');
+}
+
+async function doDeleteRide() {
+  if (!confirm('Delete this ride? This cannot be undone.')) return;
+  const groupId = S.ride.group_id;
+  await S.db.from('rides').delete().eq('id', S.ride.id);
+  await go('group', groupId);
+}
+
+async function doToggleAtt(memberId) {
+  const existing = S.attendance.find(a => a.member_id === memberId);
+  if (existing) {
+    await S.db.from('ride_attendance').delete().eq('id', existing.id);
+    S.attendance = S.attendance.filter(a => a.member_id !== memberId);
+  } else {
+    const { data, error } = await S.db.from('ride_attendance')
+      .insert({ ride_id: S.ride.id, member_id: memberId })
+      .select('*, members(name)').single();
+    if (error) throw error;
+    S.attendance.push(data);
+  }
+  // Update local stats for responsive debt display
+  const st = S.stats[memberId];
+  if (st) {
+    st.attended += existing ? -1 : 1;
+    st.debt = st.attended - st.paidFor;
+  }
+  render();
+}
+
+async function doLogPayment(payerId, coffeeCount) {
+  if (!confirm(`Confirm: ${esc(S.members.find(m=>m.id===payerId)?.name)} paid for ${coffeeCount} coffees?`)) return;
+  const { error } = await S.db.from('payments').insert({
+    ride_id: S.ride.id, payer_id: payerId, coffees_count: coffeeCount,
+  });
+  if (error) throw error;
+  // Update local stats
+  const st = S.stats[payerId];
+  if (st) { st.paidFor += coffeeCount; st.debt = st.attended - st.paidFor; }
+  await loadRide(S.ride.id);
+  S.view = 'ride';
+  render();
+  showToast('Payment logged! ☕✅', 'success');
+}
+
+async function doSaveKm() {
+  const val = parseFloat(document.getElementById('km-input')?.value);
+  if (isNaN(val) || val < 0) { showToast('Enter a valid distance', 'error'); return; }
+  await S.db.from('rides').update({ km_distance: val }).eq('id', S.ride.id);
+  S.ride.km_distance = val;
+  render();
+  showToast(`${val} km saved! 🛣`, 'success');
+}
+
+// ================================================================
+// MODALS
+// ================================================================
+function showSettingsModal() {
+  openModal(`
+    <h2 style="margin-bottom:14px">⚙ Settings</h2>
+    <div class="form-group">
+      <label>Supabase URL</label>
+      <input id="m-url" type="url" value="${esc(localStorage.getItem('sb_url') || '')}">
+    </div>
+    <div class="form-group">
+      <label>Anon Key</label>
+      <input id="m-key" type="text" value="${esc(localStorage.getItem('sb_key') || '')}">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="saveSettings()">Save</button>
+  `);
+}
+
+function saveSettings() {
+  const url = document.getElementById('m-url').value.trim();
+  const key = document.getElementById('m-key').value.trim();
+  if (!url || !key) return;
+  localStorage.setItem('sb_url', url);
+  localStorage.setItem('sb_key', key);
+  S.db = supabase.createClient(url, key);
+  closeModal();
+  showToast('Settings saved', 'success');
+}
+
+function showGroupSettingsModal() {
+  const sampleTopic = 'rideandgrind-' + Math.random().toString(36).slice(2, 7);
+  openModal(`
+    <h2 style="margin-bottom:4px">⚙ Group Settings</h2>
+    <p class="text-muted" style="margin-bottom:16px">${esc(S.group.name)}</p>
+    <div class="form-group">
+      <label>ntfy.sh Topic <span style="font-weight:400;color:var(--gray-400)">(for ride alerts)</span></label>
+      <input id="m-ntfy" type="text" placeholder="${sampleTopic}"
+        value="${esc(S.group.ntfy_topic || '')}">
+      <p style="font-size:0.75rem;color:var(--gray-400);margin-top:6px">
+        Choose a unique name — something your group will recognise but others won't guess.
+        Friends subscribe to this topic in the free <strong>ntfy</strong> app (iOS / Android) to receive ride alerts.
+      </p>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="saveGroupSettings()">Save</button>
+    ${S.group.ntfy_topic ? `
+      <div style="margin-top:14px;padding:12px;background:var(--gray-50);border-radius:var(--radius-sm);font-size:0.82rem">
+        <strong>Share with friends:</strong> Install ntfy, tap Subscribe, enter<br>
+        <code style="background:var(--gray-200);padding:2px 6px;border-radius:4px">${esc(S.group.ntfy_topic)}</code>
+      </div>` : ''}
+  `);
+}
+
+async function saveGroupSettings() {
+  const topic = document.getElementById('m-ntfy').value.trim().replace(/[^a-zA-Z0-9_-]/g, '-');
+  await S.db.from('groups').update({ ntfy_topic: topic || null }).eq('id', S.group.id);
+  S.group.ntfy_topic = topic || null;
+  closeModal();
+  render();
+  showToast('Saved', 'success');
+}
+
+function showNewGroupModal() {
+  const sample = 'rideandgrind-' + Math.random().toString(36).slice(2, 7);
+  openModal(`
+    <h2 style="margin-bottom:14px">New Group</h2>
+    <div class="form-group">
+      <label>Group name</label>
+      <input id="m-gname" type="text" placeholder="e.g. Grandito's" autofocus>
+    </div>
+    <div class="form-group">
+      <label>ntfy.sh topic <span style="font-weight:400;color:var(--gray-400)">(optional)</span></label>
+      <input id="m-gntfy" type="text" placeholder="${sample}">
+      <p style="font-size:0.75rem;color:var(--gray-400);margin-top:4px">For ride alerts. You can add this later.</p>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="createGroup()">Create Group</button>
+  `);
+}
+
+async function createGroup() {
+  const name = document.getElementById('m-gname').value.trim();
+  const ntfy = document.getElementById('m-gntfy').value.trim().replace(/[^a-zA-Z0-9_-]/g, '-');
+  if (!name) { showToast('Enter a group name', 'error'); return; }
+  const { data, error } = await S.db.from('groups')
+    .insert({ name, ntfy_topic: ntfy || null })
+    .select().single();
+  if (error) { showToast(error.message, 'error'); return; }
+  closeModal();
+  await go('group', data.id);
+}
+
+function showAddMemberModal() {
+  openModal(`
+    <h2 style="margin-bottom:14px">Add Member</h2>
+    <div class="form-group">
+      <label>Name</label>
+      <input id="m-mname" type="text" placeholder="e.g. Jane" autofocus>
+    </div>
+    <button class="btn btn-primary btn-full" onclick="addMember()">Add</button>
+  `);
+}
+
+async function addMember() {
+  const name = document.getElementById('m-mname').value.trim();
+  if (!name) return;
+  const { error } = await S.db.from('members').insert({ group_id: S.group.id, name });
+  if (error) { showToast(error.message, 'error'); return; }
+  closeModal();
+  await loadGroup(S.group.id);
+  render();
+  showToast(`${name} added!`, 'success');
+}
+
+function showNewRideModal() {
+  const today = new Date().toISOString().split('T')[0];
+  openModal(`
+    <h2 style="margin-bottom:14px">Schedule a Ride</h2>
+    <div class="form-group">
+      <label>Date</label>
+      <input id="m-rdate" type="date" value="${today}">
+    </div>
+    <button class="btn btn-primary btn-full" onclick="createRide()">Schedule</button>
+  `);
+}
+
+async function createRide() {
+  const date = document.getElementById('m-rdate').value;
+  if (!date) return;
+  const { data, error } = await S.db.from('rides')
+    .insert({ group_id: S.group.id, scheduled_date: date, status: 'upcoming' })
+    .select().single();
+  if (error) { showToast(error.message, 'error'); return; }
+  closeModal();
+  await go('ride', data.id);
+}
+
+function showAlertModal() {
+  const upcoming = S.rides.find(r => r.status === 'upcoming' || r.status === 'active');
+  let suggestion = `Ride alert! 🚴 Who's up for a ride? Register in the app.`;
+  if (upcoming) {
+    const d = new Date(upcoming.scheduled_date + 'T00:00:00');
+    const ds = d.toLocaleDateString('default', { weekday: 'long', day: 'numeric', month: 'long' });
+    suggestion = `Ride alert! 🚴 We're on for ${ds}. Who's in? Register in the app — ride or coffee only, all welcome!`;
+  }
+  openModal(`
+    <h2 style="margin-bottom:4px">🔔 Send Ride Alert</h2>
+    <p class="text-muted" style="margin-bottom:14px">
+      Push notification to everyone subscribed to <code>${esc(S.group.ntfy_topic)}</code> via ntfy.
+    </p>
+    <div class="form-group">
+      <label>Message</label>
+      <textarea id="m-alert" rows="4">${esc(suggestion)}</textarea>
+    </div>
+    <button class="btn btn-accent btn-full" onclick="sendAlert()">Send Alert 🔔</button>
+    <p style="font-size:0.72rem;color:var(--gray-400);text-align:center;margin-top:10px">
+      Friends: install the free <strong>ntfy</strong> app → subscribe to <strong>${esc(S.group.ntfy_topic)}</strong>
+    </p>
+  `);
+}
+
+async function sendAlert() {
+  const msg = document.getElementById('m-alert').value.trim();
+  if (!msg) return;
+  try {
+    const res = await fetch(`https://ntfy.sh/${encodeURIComponent(S.group.ntfy_topic)}`, {
+      method: 'POST',
+      body: msg,
+      headers: {
+        'Title': S.group.name + ' 🚴☕',
+        'Tags': 'bike,coffee',
+        'Priority': 'default',
+      },
+    });
+    if (!res.ok) throw new Error('ntfy responded with ' + res.status);
+    closeModal();
+    showToast('Alert sent! 🔔', 'success');
+  } catch (err) {
+    showToast('Could not send alert: ' + err.message, 'error');
+  }
+}
+
+function showMemberStatsModal(memberId) {
+  const m = S.members.find(x => x.id === memberId);
+  const st = S.stats[memberId] || {};
+  const debt = st.debt || 0;
+  const debtColor = debt > 0 ? 'var(--orange)' : debt < 0 ? 'var(--green-mid)' : 'var(--gray-400)';
+  const debtLabel = debt > 0 ? 'owes coffees' : debt < 0 ? `${Math.abs(debt)} in credit` : 'all square ✓';
+
+  openModal(`
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="font-size:3rem">🚴</div>
+      <h2 style="margin-top:6px">${esc(m?.name)}</h2>
+      <div style="font-size:2.2rem;font-weight:900;color:${debtColor};line-height:1;margin-top:8px">
+        ${debt > 0 ? '+' + debt : debt} ☕
+      </div>
+      <div class="text-muted" style="margin-top:4px">${debtLabel}</div>
+    </div>
+
+    <div class="section-label">This Year</div>
+    <div class="stat-grid" style="margin-bottom:14px">
+      <div class="stat-item">
+        <div class="stat-value">${st.attendedYear || 0}</div>
+        <div class="stat-label">Rides</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">${Math.round(st.kmYear || 0).toLocaleString()}</div>
+        <div class="stat-label">km ridden</div>
+      </div>
+    </div>
+
+    <div class="section-label">All Time</div>
+    <div class="stat-grid" style="margin-bottom:14px">
+      <div class="stat-item">
+        <div class="stat-value">${st.attended || 0}</div>
+        <div class="stat-label">Coffees drunk</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">${Math.round(st.kmTotal || 0).toLocaleString()}</div>
+        <div class="stat-label">km total</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">${st.paidFor || 0}</div>
+        <div class="stat-label">Coffees bought</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-value">${debt > 0 ? debt : 0}</div>
+        <div class="stat-label">Coffees owed</div>
+      </div>
+    </div>
+
+    <button class="btn btn-ghost btn-full" onclick="closeModal()">Close</button>
+  `);
+}
+
+// ================================================================
+// UTILS
+// ================================================================
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function copySQL() {
+  navigator.clipboard.writeText(SQL).then(() => showToast('SQL copied!', 'success'));
+}
+
+// ================================================================
+// INIT
+// ================================================================
 async function init() {
-  const cfg=getConfig();
-  if (!cfg) {
-    document.getElementById('loading').style.display='none';
-    document.getElementById('setup-screen').style.display='block';
+  if (!initDb()) {
+    S.view = 'setup';
+    render();
     return;
   }
-  try {
-    D=await ghLoad();
-    document.getElementById('loading').style.display='none';
-    showApp(); renderAll();
-    // Auto-refresh every 60s so idle phones pick up changes
-    setInterval(()=>{ if(!_dirty) pullLatest(); }, 60000);
-  } catch(e) {
-    document.getElementById('loading').style.display='none';
-    document.getElementById('setup-screen').style.display='block';
-    const err=document.getElementById('setup-error');
-    err.textContent=`Couldn't load from GitHub: ${e.message}`;
-    err.style.display='block';
-  }
+  await go('home');
 }
 
 init();
