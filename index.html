@@ -915,7 +915,8 @@ function renderGroup() {
       }).join('')
     : `<div class="empty"><p>Add members to get started</p></div>`;
 
-  const upcoming = S.rides.filter(r => r.status !== 'completed');
+  const today = new Date().toISOString().split('T')[0];
+  const upcoming = S.rides.filter(r => r.status !== 'completed' && r.scheduled_date >= today);
   const past = S.rides.filter(r => r.status === 'completed');
 
   const upcomingHtml = upcoming.length
