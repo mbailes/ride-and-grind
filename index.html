@@ -387,9 +387,10 @@
       transition: all 0.12s;
       -webkit-tap-highlight-color: transparent;
     }
-    .reg-btn.on-ride   { background: var(--green); color: white; }
-    .reg-btn.on-coffee { background: var(--coffee); color: white; }
-    .reg-btn.on-remove { background: var(--gray-100); }
+    .reg-btn.on-ride     { background: var(--green); color: white; }
+    .reg-btn.on-coffee   { background: var(--coffee); color: white; }
+    .reg-btn.on-nocoffee { background: var(--gray-600); color: white; }
+    .reg-btn.on-remove   { background: var(--gray-100); }
 
     /* === ATTENDANCE CHECKLIST === */
     .att-item {
@@ -777,7 +778,7 @@ create table ride_registrations (
   ride_id uuid references rides(id) on delete cascade,
   member_id uuid references members(id) on delete cascade,
   ride_type text default 'ride'
-    check (ride_type in ('ride','coffee')),
+    check (ride_type in ('ride','coffee','nocoffee')),
   unique(ride_id, member_id)
 );
 create table ride_attendance (
@@ -927,6 +928,7 @@ function renderGroup() {
         ${S.group.ntfy_topic
           ? `<button class="header-btn" data-action="send-alert">🔔 Alert</button>`
           : ''}
+        <button class="header-icon-btn" data-action="sync" title="Sync latest data">🔄</button>
         <button class="header-icon-btn" data-action="group-settings" title="Group settings">⚙</button>
       </div>
     </div>
@@ -1039,6 +1041,7 @@ function renderRide() {
     <div class="app-header">
       <button class="back-btn" data-action="back-group">‹</button>
       <h1>${dateStr}</h1>
+      <button class="header-icon-btn" data-action="sync" title="Sync latest data" style="margin-left:auto">🔄</button>
     </div>
     <div class="page">
       <div style="display:flex;gap:6px;flex-wrap:wrap">${statusBadge}${kmBadge}</div>
@@ -1072,6 +1075,8 @@ function renderUpcoming() {
             data-action="reg-set" data-mid="${m.id}" data-type="ride">🚴 Ride</button>
           <button class="reg-btn ${reg?.ride_type === 'coffee' ? 'on-coffee' : ''}"
             data-action="reg-set" data-mid="${m.id}" data-type="coffee">☕ Coffee</button>
+          <button class="reg-btn ${reg?.ride_type === 'nocoffee' ? 'on-nocoffee' : ''}"
+            data-action="reg-set" data-mid="${m.id}" data-type="nocoffee">🚫☕</button>
           ${reg ? `<button class="reg-btn on-remove" data-action="reg-remove" data-mid="${m.id}">✕</button>` : ''}
         </div>
       </div>`;
@@ -1089,78 +1094,94 @@ function renderUpcoming() {
       ${S.regs.length === 0 ? 'disabled' : ''}>
       Start Ride Day 🚴
     </button>
+    <button class="btn btn-full" data-action="share-ride-invite"
+      style="background:#25D366;color:white">
+      📱 Share ride invite to WhatsApp
+    </button>
     <button class="btn btn-danger btn-sm btn-full" data-action="delete-ride">Delete this ride</button>`;
 }
 
 function renderActive() {
-  const attIds = S.attendance.map(a => a.member_id);
-  const attRows = S.members.map(m => {
-    const present = attIds.includes(m.id);
-    const reg = S.regs.find(r => r.member_id === m.id);
-    const typeLabel = reg ? (reg.ride_type === 'coffee' ? '☕ coffee only' : '🚴 rider') : '';
-    return `
-      <div class="att-item" data-action="toggle-att" data-mid="${m.id}">
-        <div class="att-check ${present ? 'checked' : ''}">✓</div>
-        <div class="att-name">${esc(m.name)}</div>
-        <div class="att-type">${typeLabel}</div>
-      </div>`;
-  }).join('');
+  const kmSaved = S.ride.km_distance != null && S.ride.km_distance > 0;
 
-  const present = S.members.filter(m => attIds.includes(m.id));
-  const payer = [...present].sort((a, b) => (S.stats[b.id]?.debt || 0) - (S.stats[a.id]?.debt || 0))[0];
-
-  const payerBanner = payer
-    ? `<div class="payer-banner">
-        <div class="payer-icon">💳</div>
-        <div>
-          <div class="payer-label">Next to pay</div>
-          <div class="payer-name">${esc(payer.name)}</div>
-          <div class="payer-sub">Owes ${S.stats[payer.id]?.debt || 0} coffees · ${present.length} people present</div>
-        </div>
-       </div>`
-    : `<div class="card text-center text-muted" style="padding:18px">Tick who's at the coffee shop to nominate the payer</div>`;
-
-  const existingPayments = S.payments.length
-    ? `<div class="card"><div class="section-label">Payments logged</div>` +
-      S.payments.map(p => `
-        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--gray-100);font-size:0.88rem">
-          <span>✅</span>
-          <span><strong>${esc(p.members?.name)}</strong> paid for ${p.coffees_count} coffees</span>
-        </div>`).join('') + `</div>`
-    : '';
-
-  return `
+  // Step 1: Always show km input
+  let html = `
     <div class="card">
-      <div class="section-label">Log ride distance</div>
+      <div class="section-label">Step 1: Log ride distance</div>
       <div style="display:flex;gap:8px">
         <input id="km-input" type="number" min="0" step="0.1"
           placeholder="Distance in km" value="${S.ride.km_distance || ''}"
           style="flex:1">
-        <button class="btn btn-outline" style="flex-shrink:0" data-action="save-km">Save</button>
+        <button class="btn ${kmSaved ? 'btn-ghost' : 'btn-primary'}" style="flex-shrink:0" data-action="save-km">
+          ${kmSaved ? '✓ Update' : 'Save'}
+        </button>
       </div>
-    </div>
+      ${!kmSaved ? '<p class="text-muted" style="margin-top:6px;font-size:0.82rem">Log the distance before moving on to coffee.</p>' : ''}
+    </div>`;
 
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:11px 14px 8px;border-bottom:1px solid var(--border)">
-        <div class="section-label" style="margin:0">Who's at the café?</div>
-      </div>
-      <div style="padding:0 14px">${attRows}</div>
-    </div>
+  // Step 2: Only show attendance + payment after km is saved
+  if (kmSaved) {
+    const attIds = S.attendance.map(a => a.member_id);
+    const attRows = S.members.map(m => {
+      const present = attIds.includes(m.id);
+      const reg = S.regs.find(r => r.member_id === m.id);
+      const typeLabel = reg ? (reg.ride_type === 'coffee' ? '☕ coffee only' : reg.ride_type === 'nocoffee' ? '🚫☕ no coffee' : '🚴 rider') : '';
+      return `
+        <div class="att-item" data-action="toggle-att" data-mid="${m.id}">
+          <div class="att-check ${present ? 'checked' : ''}">✓</div>
+          <div class="att-name">${esc(m.name)}</div>
+          <div class="att-type">${typeLabel}</div>
+        </div>`;
+    }).join('');
 
-    ${payerBanner}
-    ${existingPayments}
+    const present = S.members.filter(m => attIds.includes(m.id));
+    const payer = [...present].sort((a, b) => (S.stats[b.id]?.debt || 0) - (S.stats[a.id]?.debt || 0))[0];
 
-    ${payer && present.length > 0 ? `
-      <button class="btn btn-accent btn-full"
-        data-action="log-payment"
-        data-payer="${payer.id}"
-        data-count="${present.length}">
-        ☕ Log: ${esc(payer.name)} paid for ${present.length} coffees
-      </button>` : ''}
+    const payerBanner = payer
+      ? `<div class="payer-banner">
+          <div class="payer-icon">💳</div>
+          <div>
+            <div class="payer-label">Next to pay</div>
+            <div class="payer-name">${esc(payer.name)}</div>
+            <div class="payer-sub">Owes ${S.stats[payer.id]?.debt || 0} coffees · ${present.length} people present</div>
+          </div>
+         </div>`
+      : `<div class="card text-center text-muted" style="padding:18px">Tick who's at the café to nominate the payer</div>`;
 
-    <button class="btn btn-ghost btn-full" data-action="complete-ride">
-      ✅ Mark Ride Complete
-    </button>`;
+    const alreadyPaid = S.payments.length > 0;
+
+    html += `
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:11px 14px 8px;border-bottom:1px solid var(--border)">
+          <div class="section-label" style="margin:0">Step 2: Who's at the café?</div>
+        </div>
+        <div style="padding:0 14px">${attRows}</div>
+      </div>`;
+
+    if (alreadyPaid) {
+      // Payment already logged — just show info, no second button
+      const whoPaid = S.payments[0];
+      html += `
+        <div class="card" style="text-align:center;padding:16px">
+          <div style="font-size:1.2rem;margin-bottom:4px">✅ ☕</div>
+          <div style="font-weight:600">${esc(whoPaid.members?.name)} paid for ${whoPaid.coffees_count} coffees</div>
+          ${payer ? `<div class="text-muted" style="margin-top:8px">Next time: <strong>${esc(payer.name)}</strong> is up</div>` : ''}
+        </div>`;
+    } else {
+      html += payerBanner;
+      if (payer && present.length > 0) {
+        html += `
+          <button class="btn btn-accent btn-full"
+            data-action="log-payment"
+            data-payer="${payer.id}"
+            data-count="${present.length}">
+            ☕ ${esc(payer.name)} pays for ${present.length} coffees — done!
+          </button>`;
+      }
+    }
+  }
+
+  return html;
 }
 
 function renderCompleted() {
@@ -1173,6 +1194,10 @@ function renderCompleted() {
           <span><strong>${esc(p.members?.name)}</strong> paid for ${p.coffees_count} coffees</span>
         </div>`).join('')
     : '<p class="text-muted">No payment recorded</p>';
+
+  // Figure out who's next to pay (for the summary)
+  const sorted = [...S.members].sort((a,b) => (S.stats[b.id]?.debt||0) - (S.stats[a.id]?.debt||0));
+  const nextPayer = sorted[0];
 
   return `
     <div class="card">
@@ -1191,13 +1216,18 @@ function renderCompleted() {
     <div class="card">
       <div class="section-label">Coffee payment</div>
       ${paymentsHtml}
+      ${nextPayer ? `<p class="text-muted" style="margin-top:8px">Next time: <strong>${esc(nextPayer.name)}</strong> is up (owes ${S.stats[nextPayer.id]?.debt||0})</p>` : ''}
     </div>
     <div class="card">
       <div class="section-label">Registered riders</div>
       <p style="font-size:0.88rem;color:var(--gray-600)">${regRiders}</p>
       <div class="section-label mt-3">At the café</div>
       <p style="font-size:0.88rem;color:var(--gray-600)">${attNames}</p>
-    </div>`;
+    </div>
+    <button class="btn btn-full" data-action="share-summary"
+      style="background:#25D366;color:white">
+      📱 Share ride summary to WhatsApp
+    </button>`;
 }
 
 // ================================================================
@@ -1232,6 +1262,7 @@ async function onAction(e) {
       case 'settings':       showSettingsModal(); break;
       case 'back':           await go('home'); break;
       case 'group-settings': showGroupSettingsModal(); break;
+      case 'sync':           await doSync(); break;
       case 'send-alert':     showAlertModal(); break;
       case 'add-member':     showAddMemberModal(); break;
       case 'new-ride':       showNewRideModal(); break;
@@ -1246,6 +1277,8 @@ async function onAction(e) {
       case 'log-payment':    await doLogPayment(el.dataset.payer, parseInt(el.dataset.count)); break;
       case 'save-km':        await doSaveKm(); break;
       case 'complete-ride':  await doCompleteRide(); break;
+      case 'share-ride-invite': shareRideInvite(); break;
+      case 'share-summary':  await shareSummary(); break;
     }
   } catch (err) {
     console.error(err);
@@ -1256,6 +1289,23 @@ async function onAction(e) {
 // ================================================================
 // ACTIONS
 // ================================================================
+async function doSync() {
+  // Re-fetch current view from Supabase
+  if (S.view === 'group' && S.group) {
+    await loadGroup(S.group.id);
+    render();
+    showToast('Synced!', 'success');
+  } else if (S.view === 'ride' && S.ride) {
+    await loadRide(S.ride.id);
+    S.view = 'ride';
+    render();
+    showToast('Synced!', 'success');
+  } else {
+    await go(S.view);
+    showToast('Synced!', 'success');
+  }
+}
+
 async function doSaveConfig() {
   const url = document.getElementById('cfg-url').value.trim();
   const key = document.getElementById('cfg-key').value.trim();
@@ -1344,13 +1394,15 @@ async function doLogPayment(payerId, coffeeCount) {
     ride_id: S.ride.id, payer_id: payerId, coffees_count: coffeeCount,
   });
   if (error) throw error;
-  // Update local stats
-  const st = S.stats[payerId];
-  if (st) { st.paidFor += coffeeCount; st.debt = st.attended - st.paidFor; }
+  // Mark ride as completed automatically
+  await S.db.from('rides').update({ status: 'completed' }).eq('id', S.ride.id);
+  showToast('Payment logged — ride complete! ☕✅', 'success');
+  // Reload and show the completed summary (with share button)
   await loadRide(S.ride.id);
+  if(S.ride && (!S.group || S.group.id !== S.ride.group_id)) await loadGroup(S.ride.group_id);
+  else if(S.ride) await computeStats();
   S.view = 'ride';
   render();
-  showToast('Payment logged! ☕✅', 'success');
 }
 
 async function doSaveKm() {
@@ -1360,6 +1412,205 @@ async function doSaveKm() {
   S.ride.km_distance = val;
   render();
   showToast(`${val} km saved! 🛣`, 'success');
+}
+
+// ================================================================
+// WHATSAPP SHARING
+// ================================================================
+
+function shareRideInvite() {
+  const d = new Date(S.ride.scheduled_date + 'T00:00:00');
+  const dateStr = d.toLocaleDateString('default', { weekday:'long', day:'numeric', month:'long' });
+  const riders = S.regs.filter(r=>r.ride_type==='ride').map(r=>r.members?.name).filter(Boolean);
+  const coffeeOnly = S.regs.filter(r=>r.ride_type==='coffee').map(r=>r.members?.name).filter(Boolean);
+  let msg = `🚴☕ *Ride & Grind — ${esc(S.group.name)}*\n\n`;
+  msg += `📅 *${dateStr}*\n\n`;
+  if(riders.length) msg += `🚴 Riding: ${riders.join(', ')}\n`;
+  if(coffeeOnly.length) msg += `☕ Coffee: ${coffeeOnly.join(', ')}\n`;
+  msg += `\nWho's in? Register in the app!`;
+  // wa.me with pre-filled text
+  const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
+async function shareSummary() {
+  // Build summary data
+  const d = new Date(S.ride.scheduled_date + 'T00:00:00');
+  const dateStr = d.toLocaleDateString('default', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
+  const riders = S.regs.filter(r=>r.ride_type==='ride').map(r=>r.members?.name).filter(Boolean);
+  const atCafe = S.attendance.map(a=>a.members?.name).filter(Boolean);
+  const paidBy = S.payments.length ? S.payments[0] : null;
+  const sorted = [...S.members].sort((a,b)=>(S.stats[b.id]?.debt||0)-(S.stats[a.id]?.debt||0));
+  const nextPayer = sorted[0];
+
+  // Generate image
+  const canvas = document.createElement('canvas');
+  canvas.width = 600; canvas.height = 700;
+  const ctx = canvas.getContext('2d');
+
+  // Background
+  const grad = ctx.createLinearGradient(0,0,0,700);
+  grad.addColorStop(0,'#1b4332');
+  grad.addColorStop(1,'#2d6a4f');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,600,700);
+
+  // Decorative top bar
+  ctx.fillStyle = '#e76f51';
+  ctx.fillRect(0,0,600,6);
+
+  // Title
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 32px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🚴 Ride & Grind ☕', 300, 50);
+
+  // Group name
+  ctx.font = '20px -apple-system, sans-serif';
+  ctx.fillStyle = '#d8f3dc';
+  ctx.fillText(S.group.name, 300, 82);
+
+  // Date
+  ctx.font = '18px -apple-system, sans-serif';
+  ctx.fillStyle = '#f4a261';
+  ctx.fillText(dateStr, 300, 115);
+
+  // Divider
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(50,135); ctx.lineTo(550,135); ctx.stroke();
+
+  // Stats boxes
+  ctx.textAlign = 'center';
+  // KM box
+  drawStatBox(ctx, 100, 155, '🛣', S.ride.km_distance ? S.ride.km_distance+' km' : '—', 'Distance');
+  // Riders box
+  drawStatBox(ctx, 300, 155, '🚴', riders.length.toString(), 'Riders');
+  // Coffees box
+  drawStatBox(ctx, 500, 155, '☕', atCafe.length.toString(), 'At café');
+
+  // Riders list
+  let y = 270;
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 16px -apple-system, sans-serif';
+  ctx.fillStyle = '#d8f3dc';
+  ctx.fillText('RIDERS', 50, y);
+  y += 25;
+  ctx.font = '15px -apple-system, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(riders.join(', ') || '—', 50, y);
+
+  // At café
+  y += 40;
+  ctx.font = 'bold 16px -apple-system, sans-serif';
+  ctx.fillStyle = '#d8f3dc';
+  ctx.fillText('AT THE CAFÉ', 50, y);
+  y += 25;
+  ctx.font = '15px -apple-system, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(atCafe.join(', ') || '—', 50, y);
+
+  // Divider
+  y += 30;
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.beginPath(); ctx.moveTo(50,y); ctx.lineTo(550,y); ctx.stroke();
+
+  // Payment
+  y += 35;
+  if (paidBy) {
+    ctx.font = 'bold 22px -apple-system, sans-serif';
+    ctx.fillStyle = '#f4a261';
+    ctx.textAlign = 'center';
+    ctx.fillText(`💳 ${paidBy.members?.name} paid for ${paidBy.coffees_count} coffees`, 300, y);
+  }
+
+  // Next payer
+  if (nextPayer) {
+    y += 40;
+    ctx.font = '18px -apple-system, sans-serif';
+    ctx.fillStyle = '#e76f51';
+    ctx.fillText(`Next time: ${nextPayer.name} is buying! 👑`, 300, y);
+  }
+
+  // Leaderboard
+  y += 50;
+  ctx.font = 'bold 16px -apple-system, sans-serif';
+  ctx.fillStyle = '#d8f3dc';
+  ctx.textAlign = 'left';
+  ctx.fillText('☕ COFFEE LEADERBOARD', 50, y);
+  y += 5;
+  const top5 = sorted.slice(0, 5);
+  ctx.font = '14px -apple-system, sans-serif';
+  for (let i = 0; i < top5.length; i++) {
+    y += 24;
+    const m = top5[i], st = S.stats[m.id] || {};
+    const debt = st.debt || 0;
+    const icon = i === 0 ? '👑' : `${i+1}.`;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(`${icon} ${m.name}`, 60, y);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = debt > 0 ? '#f4a261' : '#3fb950';
+    ctx.fillText(`${debt > 0 ? '+' : ''}${debt} ☕`, 550, y);
+    ctx.textAlign = 'left';
+  }
+
+  // Footer
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.font = '12px -apple-system, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Ride & Grind — Who\'s buying the coffees?', 300, 680);
+
+  // Try Web Share API (mobile — supports images to WhatsApp)
+  try {
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+    const file = new File([blob], 'ride-summary.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        text: `🚴☕ ${S.group.name} — ${dateStr}\n${S.ride.km_distance||'?'} km · ${atCafe.length} coffees` +
+              (paidBy ? `\n💳 ${paidBy.members?.name} paid!` : '') +
+              (nextPayer ? `\n👑 Next: ${nextPayer.name}` : ''),
+        files: [file],
+      });
+      return;
+    }
+  } catch(e) { /* user cancelled or not supported */ }
+
+  // Fallback: text-only WhatsApp link
+  let msg = `🚴☕ *${S.group.name} — Ride Summary*\n\n`;
+  msg += `📅 ${dateStr}\n`;
+  msg += `🛣 ${S.ride.km_distance||'?'} km\n`;
+  msg += `🚴 Riders: ${riders.join(', ')||'—'}\n`;
+  msg += `☕ At café: ${atCafe.join(', ')||'—'}\n`;
+  if(paidBy) msg += `\n💳 *${paidBy.members?.name}* paid for ${paidBy.coffees_count} coffees\n`;
+  if(nextPayer) msg += `👑 Next time: *${nextPayer.name}* is buying!\n`;
+  msg += `\n☕ Leaderboard:\n`;
+  sorted.slice(0,5).forEach((m,i) => {
+    const debt = S.stats[m.id]?.debt||0;
+    msg += `${i===0?'👑':' '+(i+1)+'.'} ${m.name}: ${debt>0?'+':''}${debt}\n`;
+  });
+  window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+function drawStatBox(ctx, cx, y, emoji, value, label) {
+  // Rounded box background
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  const bw=130, bh=80, bx=cx-bw/2, by=y;
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, 12);
+  ctx.fill();
+  // Emoji
+  ctx.textAlign = 'center';
+  ctx.font = '22px -apple-system, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(emoji, cx, y+25);
+  // Value
+  ctx.font = 'bold 20px -apple-system, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(value, cx, y+50);
+  // Label
+  ctx.font = '12px -apple-system, sans-serif';
+  ctx.fillStyle = '#d8f3dc';
+  ctx.fillText(label, cx, y+68);
 }
 
 // ================================================================
@@ -1394,8 +1645,11 @@ function saveSettings() {
 function showGroupSettingsModal() {
   const sampleTopic = 'rideandgrind-' + Math.random().toString(36).slice(2, 7);
   openModal(`
-    <h2 style="margin-bottom:4px">⚙ Group Settings</h2>
-    <p class="text-muted" style="margin-bottom:16px">${esc(S.group.name)}</p>
+    <h2 style="margin-bottom:12px">⚙ Group Settings</h2>
+    <div class="form-group">
+      <label>Group name</label>
+      <input id="m-gname-edit" type="text" value="${esc(S.group.name)}">
+    </div>
     <div class="form-group">
       <label>ntfy.sh Topic <span style="font-weight:400;color:var(--gray-400)">(for ride alerts)</span></label>
       <input id="m-ntfy" type="text" placeholder="${sampleTopic}"
@@ -1411,16 +1665,32 @@ function showGroupSettingsModal() {
         <strong>Share with friends:</strong> Install ntfy, tap Subscribe, enter<br>
         <code style="background:var(--gray-200);padding:2px 6px;border-radius:4px">${esc(S.group.ntfy_topic)}</code>
       </div>` : ''}
+    <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+      <button class="btn btn-danger btn-full" onclick="deleteGroup()">Delete Group</button>
+      <p style="font-size:0.72rem;color:var(--gray-400);margin-top:6px;text-align:center">This will permanently delete the group, all members, rides, and payment history.</p>
+    </div>
   `);
 }
 
 async function saveGroupSettings() {
+  const name = document.getElementById('m-gname-edit').value.trim();
   const topic = document.getElementById('m-ntfy').value.trim().replace(/[^a-zA-Z0-9_-]/g, '-');
-  await S.db.from('groups').update({ ntfy_topic: topic || null }).eq('id', S.group.id);
+  if (!name) { showToast('Group name cannot be empty', 'error'); return; }
+  await S.db.from('groups').update({ name, ntfy_topic: topic || null }).eq('id', S.group.id);
+  S.group.name = name;
   S.group.ntfy_topic = topic || null;
   closeModal();
   render();
   showToast('Saved', 'success');
+}
+
+async function deleteGroup() {
+  if (!confirm(`Delete "${S.group.name}"? This removes all members, rides, and payment history permanently.`)) return;
+  if (!confirm('Are you really sure? This cannot be undone.')) return;
+  await S.db.from('groups').delete().eq('id', S.group.id);
+  closeModal();
+  await go('home');
+  showToast('Group deleted', 'success');
 }
 
 function showNewGroupModal() {
