@@ -916,7 +916,7 @@ function renderGroup() {
     : `<div class="empty"><p>Add members to get started</p></div>`;
 
   const today = new Date().toISOString().split('T')[0];
-  const upcoming = S.rides.filter(r => r.status !== 'completed' && r.scheduled_date >= today);
+  const upcoming = S.rides.filter(r => r.status === 'upcoming' && r.scheduled_date >= today);
   const past = S.rides.filter(r => r.status === 'completed');
 
   const upcomingHtml = upcoming.length
@@ -1810,7 +1810,7 @@ async function sendAlert() {
       method: 'POST',
       body: msg,
       headers: {
-        'Title': S.group.name + ' 🚴☕',
+        'Title': S.group.name + ' - Ride & Grind',
         'Tags': 'bike,coffee',
         'Priority': 'default',
       },
