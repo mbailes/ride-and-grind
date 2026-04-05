@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Ride & Grind</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚴</text></svg>">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
@@ -908,7 +909,7 @@ function renderGroup() {
             <div class="rank rank-${i < 3 ? i + 1 : ''}">${rankLabel}</div>
             <div class="lb-name">${esc(m.name)}</div>
             <span class="badge ${debt > 0 ? 'badge-orange' : debt < 0 ? 'badge-green' : 'badge-gray'} lb-debt">
-              ${debt > 0 ? '+' + debt : debt} ☕
+              ${debt > 0 ? '+'+debt+' owes' : debt < 0 ? debt+' credit' : 'square'}
             </span>
           </div>`;
       }).join('')
@@ -1079,7 +1080,7 @@ function renderUpcoming() {
           <button class="reg-btn ${reg?.ride_type === 'coffee' ? 'on-coffee' : ''}"
             data-action="reg-set" data-mid="${m.id}" data-type="coffee">☕ Coffee</button>
           <button class="reg-btn ${reg?.ride_type === 'nocoffee' ? 'on-nocoffee' : ''}"
-            data-action="reg-set" data-mid="${m.id}" data-type="nocoffee">🚫☕</button>
+            data-action="reg-set" data-mid="${m.id}" data-type="nocoffee">No ☕</button>
           ${reg ? `<button class="reg-btn on-remove" data-action="reg-remove" data-mid="${m.id}">✕</button>` : ''}
         </div>
       </div>`;
@@ -1128,7 +1129,7 @@ function renderActive() {
     const attRows = S.members.map(m => {
       const present = attIds.includes(m.id);
       const reg = S.regs.find(r => r.member_id === m.id);
-      const typeLabel = reg ? (reg.ride_type === 'coffee' ? '☕ coffee only' : reg.ride_type === 'nocoffee' ? '🚫☕ no coffee' : '🚴 rider') : '';
+      const typeLabel = reg ? (reg.ride_type === 'coffee' ? '☕ coffee only' : reg.ride_type === 'nocoffee' ? 'No ☕ no coffee' : '🚴 rider') : '';
       return `
         <div class="att-item" data-action="toggle-att" data-mid="${m.id}">
           <div class="att-check ${present ? 'checked' : ''}">✓</div>
