@@ -713,7 +713,6 @@ async function computeStats() {
 
   // Group-level totals
   const completedRides = S.rides.filter(r => r.status === 'completed');
-  const thisYear = new Date().getFullYear().toString();
   const totalKm = completedRides.reduce((s, r) => s + (r.km_distance || 0), 0);
   const totalKmYear = completedRides
     .filter(r => (r.scheduled_date || '').startsWith(thisYear))
