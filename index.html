@@ -713,9 +713,13 @@ async function computeStats() {
 
   // Group-level totals
   const completedRides = S.rides.filter(r => r.status === 'completed');
+  const thisYear = new Date().getFullYear().toString();
   const totalKm = completedRides.reduce((s, r) => s + (r.km_distance || 0), 0);
+  const totalKmYear = completedRides
+    .filter(r => (r.scheduled_date || '').startsWith(thisYear))
+    .reduce((s, r) => s + (r.km_distance || 0), 0);
   const totalCoffees = Object.values(S.stats).reduce((s, st) => s + st.attended, 0);
-  S.groupTotals = { totalRides: completedRides.length, totalKm, totalCoffees };
+  S.groupTotals = { totalRides: completedRides.length, totalKm, totalKmYear, totalCoffees };
 }
 
 async function loadRide(id) {
@@ -1427,7 +1431,10 @@ function shareRideInvite() {
   msg += `📅 *${dateStr}*\n\n`;
   if(riders.length) msg += `🚴 Riding: ${riders.join(', ')}\n`;
   if(coffeeOnly.length) msg += `☕ Coffee: ${coffeeOnly.join(', ')}\n`;
-  msg += `\nWho's in? Register in the app!`;
+  const yrKm=Math.round(S.groupTotals.totalKmYear||0);
+  msg += `\nThe ${S.group.name} are planning a ride! Who's in?`;
+  const coffees=S.groupTotals.totalCoffees||0;
+  if(yrKm>0||coffees>0) msg += `\n\n🏆 We've ridden ${yrKm.toLocaleString()} km and consumed ${coffees} coffees together this year!`;
   // wa.me with pre-filled text
   const url = `https://wa.me/?text=${encodeURIComponent(msg)}`;
   window.open(url, '_blank');
@@ -1769,11 +1776,14 @@ async function createRide() {
 
 function showAlertModal() {
   const upcoming = S.rides.find(r => r.status === 'upcoming' || r.status === 'active');
-  let suggestion = `Ride alert! 🚴 Who's up for a ride? Register in the app.`;
+  const yrKm=Math.round(S.groupTotals.totalKmYear||0);
+  const coffees=S.groupTotals.totalCoffees||0;
+  const kmBoast=(yrKm>0||coffees>0)?` We've ridden ${yrKm.toLocaleString()} km and consumed ${coffees} coffees this year! 🏆`:'';
+  let suggestion = `The ${S.group.name} are planning a ride! Who's in? 🚴☕${kmBoast}`;
   if (upcoming) {
     const d = new Date(upcoming.scheduled_date + 'T00:00:00');
     const ds = d.toLocaleDateString('default', { weekday: 'long', day: 'numeric', month: 'long' });
-    suggestion = `Ride alert! 🚴 We're on for ${ds}. Who's in? Register in the app — ride or coffee only, all welcome!`;
+    suggestion = `The ${S.group.name} are riding on ${ds}! Who's in? 🚴☕${kmBoast}`;
   }
   openModal(`
     <h2 style="margin-bottom:4px">🔔 Send Ride Alert</h2>
