@@ -680,10 +680,10 @@ async function computeStats() {
 
   const thisYear = new Date().getFullYear().toString();
 
-  // Attendance joined with rides for km + date
+  // Only count attendance from COMPLETED rides (prevents stuck rides from skewing debt)
   const { data: att } = await S.db
     .from('ride_attendance')
-    .select('member_id, rides(km_distance, scheduled_date)')
+    .select('member_id, ride_id, rides(km_distance, scheduled_date, status)')
     .in('member_id', memberIds);
 
   // Payments
@@ -695,6 +695,8 @@ async function computeStats() {
   (att || []).forEach(a => {
     const st = S.stats[a.member_id];
     if (!st) return;
+    // Only count attendance from completed rides
+    if (a.rides?.status !== 'completed') return;
     st.attended++;
     const year = (a.rides?.scheduled_date || '').slice(0, 4);
     const km = a.rides?.km_distance || 0;
@@ -1186,6 +1188,14 @@ function renderActive() {
     }
   }
 
+  // Cancel ride button (clears attendance/payments, prevents stuck rides)
+  html += `
+    <div class="card" style="margin-top:12px">
+      <button class="btn btn-ghost btn-full" data-action="cancel-ride" style="color:var(--red)">
+        ✕ Cancel this ride (no coffees owed)
+      </button>
+    </div>`;
+
   return html;
 }
 
@@ -1278,6 +1288,7 @@ async function onAction(e) {
       case 'reg-remove':     await doRegRemove(el.dataset.mid); break;
       case 'start-ride':     await doStartRide(); break;
       case 'delete-ride':    await doDeleteRide(); break;
+      case 'cancel-ride':    await doCancelRide(); break;
       case 'toggle-att':     await doToggleAtt(el.dataset.mid); break;
       case 'log-payment':    await doLogPayment(el.dataset.payer, parseInt(el.dataset.count)); break;
       case 'save-km':        await doSaveKm(); break;
@@ -1372,7 +1383,29 @@ async function doDeleteRide() {
   await go('group', groupId);
 }
 
+async function doCancelRide() {
+  if (!confirm('Cancel this ride? Attendance records will be removed and no coffees will be owed.')) return;
+  const rideId = S.ride.id;
+  const groupId = S.ride.group_id;
+  // Remove attendance and payments for this ride
+  await S.db.from('ride_attendance').delete().eq('ride_id', rideId);
+  await S.db.from('payments').delete().eq('ride_id', rideId);
+  // Mark as completed (so it doesn't show as active)
+  await S.db.from('rides').update({ status: 'completed' }).eq('id', rideId);
+  showToast('Ride cancelled — no coffees owed', 'success');
+  await go('group', groupId);
+}
+
 async function doToggleAtt(memberId) {
+  // Don't allow attendance changes if ride is already completed/paid
+  if (S.ride.status === 'completed') {
+    showToast('Ride is already completed — cannot change attendance', 'error');
+    return;
+  }
+  if (S.payments && S.payments.length > 0) {
+    showToast('Payment already logged — cannot change attendance', 'error');
+    return;
+  }
   const existing = S.attendance.find(a => a.member_id === memberId);
   if (existing) {
     await S.db.from('ride_attendance').delete().eq('id', existing.id);
@@ -1395,6 +1428,14 @@ async function doToggleAtt(memberId) {
 
 async function doLogPayment(payerId, coffeeCount) {
   if (!confirm(`Confirm: ${esc(S.members.find(m=>m.id===payerId)?.name)} paid for ${coffeeCount} coffees?`)) return;
+  // Check for existing payment first (prevent duplicates from concurrent clicks)
+  const { data: existing } = await S.db.from('payments').select('id').eq('ride_id', S.ride.id);
+  if (existing && existing.length > 0) {
+    showToast('Payment already recorded for this ride!', 'error');
+    await loadRide(S.ride.id);
+    render();
+    return;
+  }
   const { error } = await S.db.from('payments').insert({
     ride_id: S.ride.id, payer_id: payerId, coffees_count: coffeeCount,
   });
