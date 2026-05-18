@@ -722,6 +722,30 @@ async function computeStats() {
     .reduce((s, r) => s + (r.km_distance || 0), 0);
   const totalCoffees = Object.values(S.stats).reduce((s, st) => s + st.attended, 0);
   S.groupTotals = { totalRides: completedRides.length, totalKm, totalKmYear, totalCoffees };
+
+  // Time-series for the "have we been slacking?" chart.
+  // Per ride: attendees = number of ride_attendance rows for completed rides.
+  // Cumulative coffees = sum of attendees over time. Cumulative rider-km =
+  // sum of (attendees × ride.km_distance) over time.
+  const attendeesByRide = {};
+  (att || []).forEach(a => {
+    if (a.rides?.status !== 'completed') return;
+    attendeesByRide[a.ride_id] = (attendeesByRide[a.ride_id] || 0) + 1;
+  });
+  const byDate = completedRides
+    .filter(r => r.scheduled_date)
+    .map(r => ({
+      date: r.scheduled_date,
+      km: r.km_distance || 0,
+      attendees: attendeesByRide[r.id] || 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  let cumCoffees = 0, cumRiderKm = 0;
+  S.timeSeries = byDate.map(d => {
+    cumCoffees += d.attendees;
+    cumRiderKm += d.attendees * d.km;
+    return { date: d.date, cumCoffees, cumRiderKm };
+  });
 }
 
 async function loadRide(id) {
@@ -984,6 +1008,15 @@ function renderGroup() {
         </div>
       </div>
 
+      <div class="card">
+        <div class="section-label">Team progress over time</div>
+        ${renderTimeChart(S.timeSeries, 'cumCoffees',
+                          '☕ Coffees consumed', 'var(--coffee)')}
+        <div style="height:14px"></div>
+        ${renderTimeChart(S.timeSeries, 'cumRiderKm',
+                          '🚴 Rider-kilometres', 'var(--green-mid)', ' km')}
+      </div>
+
       ${past.length ? `
         <div class="card" style="padding:0;overflow:hidden">
           <div style="padding:11px 14px 8px;border-bottom:1px solid var(--border)">
@@ -993,6 +1026,69 @@ function renderGroup() {
         </div>` : ''}
 
     </div>`;
+}
+
+// ── Cumulative-over-time sparkline (calendar-date x-axis) ──
+function renderTimeChart(series, valueKey, title, color, unit = '') {
+  if (!series || series.length < 2) {
+    return `<div class="text-muted" style="text-align:center;padding:18px 0;font-size:0.85rem">
+              Not enough completed rides yet for a trend
+            </div>`;
+  }
+  const W = 440, H = 130, padL = 38, padR = 12, padT = 12, padB = 22;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const xs = series.map(d => new Date(d.date + 'T00:00:00').getTime());
+  const ys = series.map(d => d[valueKey]);
+  const xMin = xs[0], xMax = xs[xs.length - 1] || xs[0] + 1;
+  const yMax = Math.max(...ys);
+  const xScale = t => padL + ((t - xMin) / (xMax - xMin || 1)) * innerW;
+  const yScale = v => padT + innerH - (v / (yMax || 1)) * innerH;
+
+  const points = series.map((d, i) => `${xScale(xs[i])},${yScale(ys[i])}`).join(' ');
+  const areaPts = `${padL},${padT + innerH} ${points} ${xScale(xMax)},${padT + innerH}`;
+  const dots = series.map((d, i) =>
+    `<circle cx="${xScale(xs[i])}" cy="${yScale(ys[i])}" r="2" fill="${color}"/>`
+  ).join('');
+
+  // Date ticks: first, middle, last
+  const fmt = t => {
+    const d = new Date(t);
+    return d.toLocaleDateString('en', { day: 'numeric', month: 'short' });
+  };
+  const ticks = xs.length > 2
+    ? [xs[0], xs[Math.floor(xs.length / 2)], xs[xs.length - 1]]
+    : [xs[0], xs[xs.length - 1]];
+  const tickLabels = ticks.map(t =>
+    `<text x="${xScale(t)}" y="${H - 6}" text-anchor="middle"
+           font-size="10" fill="var(--gray-600)">${fmt(t)}</text>`
+  ).join('');
+
+  // Y-axis labels: 0, mid, max
+  const yTicks = [0, yMax / 2, yMax];
+  const yLabels = yTicks.map(v =>
+    `<text x="${padL - 4}" y="${yScale(v) + 3}" text-anchor="end"
+           font-size="10" fill="var(--gray-600)">${Math.round(v).toLocaleString()}</text>` +
+    `<line x1="${padL}" x2="${W - padR}" y1="${yScale(v)}" y2="${yScale(v)}"
+           stroke="var(--gray-200)" stroke-width="0.5"/>`
+  ).join('');
+
+  const final = ys[ys.length - 1];
+  return `
+    <div style="margin-bottom:6px;display:flex;align-items:baseline;justify-content:space-between">
+      <span style="font-size:0.85rem;font-weight:600">${title}</span>
+      <span style="font-size:0.95rem;font-weight:700;color:${color}">
+        ${Math.round(final).toLocaleString()}${unit}
+      </span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet"
+         style="width:100%;height:auto;display:block">
+      ${yLabels}
+      <polygon points="${areaPts}" fill="${color}" fill-opacity="0.12"/>
+      <polyline points="${points}" fill="none" stroke="${color}" stroke-width="1.8"
+                stroke-linecap="round" stroke-linejoin="round"/>
+      ${dots}
+      ${tickLabels}
+    </svg>`;
 }
 
 function rideItemHtml(r) {
